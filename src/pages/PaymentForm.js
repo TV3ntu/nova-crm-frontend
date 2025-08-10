@@ -8,6 +8,7 @@ import Select from '../components/common/Select';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { paymentsAPI, studentsAPI } from '../services/api';
 
 const PaymentForm = () => {
   const navigate = useNavigate();
@@ -16,7 +17,9 @@ const PaymentForm = () => {
   const preselectedStudentId = searchParams.get('student');
 
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [students, setStudents] = useState([]);
   const [formData, setFormData] = useState({
     studentId: preselectedStudentId || '',
     selectedClasses: [],
@@ -26,35 +29,6 @@ const PaymentForm = () => {
   });
   const [errors, setErrors] = useState({});
 
-  const students = [
-    { 
-      id: '1', 
-      name: 'María García',
-      avatar: null,
-      pendingClasses: [
-        { id: 'ballet', name: 'Ballet Clásico', price: 800, dueDate: '2024-02-10' },
-        { id: 'jazz', name: 'Jazz', price: 700, dueDate: '2024-02-10' }
-      ]
-    },
-    { 
-      id: '2', 
-      name: 'Ana López',
-      avatar: null,
-      pendingClasses: [
-        { id: 'hiphop', name: 'Hip Hop', price: 750, dueDate: '2024-01-10', overdue: true }
-      ]
-    },
-    { 
-      id: '3', 
-      name: 'Carmen Silva',
-      avatar: null,
-      pendingClasses: [
-        { id: 'contemporaneo', name: 'Contemporáneo', price: 800, dueDate: '2024-02-15' },
-        { id: 'ballet', name: 'Ballet Clásico', price: 800, dueDate: '2024-02-15' }
-      ]
-    }
-  ];
-
   const paymentMethods = [
     { value: 'efectivo', label: 'Efectivo' },
     { value: 'transferencia', label: 'Transferencia Bancaria' },
@@ -63,22 +37,45 @@ const PaymentForm = () => {
   ];
 
   useEffect(() => {
-    if (preselectedStudentId) {
-      const student = students.find(s => s.id === preselectedStudentId);
+    loadStudents();
+  }, []);
+
+  useEffect(() => {
+    if (preselectedStudentId && students.length > 0) {
+      const student = students.find(s => s.id.toString() === preselectedStudentId);
       if (student) {
         setSelectedStudent(student);
         setFormData(prev => ({
           ...prev,
-          studentId: preselectedStudentId,
-          selectedClasses: student.pendingClasses.map(cls => cls.id)
+          selectedClasses: student.pendingClasses?.map(cls => cls.id) || []
         }));
       }
     }
-  }, [preselectedStudentId]);
+  }, [preselectedStudentId, students]);
+
+  const loadStudents = async () => {
+    setInitialLoading(true);
+    try {
+      const response = await studentsAPI.getAll();
+      // Transform students data to include pending classes information
+      const studentsWithPending = response.data.map(student => ({
+        ...student,
+        pendingClasses: student.pendingClasses || []
+      }));
+      setStudents(studentsWithPending);
+    } catch (error) {
+      console.error('Error loading students:', error);
+      showError('Error al cargar la lista de estudiantes');
+      // Fallback to empty array
+      setStudents([]);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   const handleStudentChange = (e) => {
     const studentId = e.target.value;
-    const student = students.find(s => s.id === studentId);
+    const student = students.find(s => s.id.toString() === studentId);
     
     setSelectedStudent(student);
     setFormData(prev => ({
@@ -165,18 +162,37 @@ const PaymentForm = () => {
     setLoading(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
       const { total } = calculatePayment();
+      
+      const paymentData = {
+        studentId: parseInt(formData.studentId),
+        classes: formData.selectedClasses,
+        paymentMethod: formData.paymentMethod,
+        paymentDate: formData.paymentDate,
+        amount: total,
+        notes: formData.notes.trim()
+      };
+
+      await paymentsAPI.create(paymentData);
       showSuccess(`Pago de $${total.toLocaleString()} procesado exitosamente`);
       
       navigate('/payments');
     } catch (error) {
-      showError('Error al procesar el pago');
+      console.error('Error processing payment:', error);
+      const errorMessage = error.response?.data?.message || 'Error al procesar el pago';
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
+
+  if (initialLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   const { baseAmount, lateFee, total, hasOverdueClasses } = calculatePayment();
 
@@ -200,7 +216,7 @@ const PaymentForm = () => {
             error={errors.studentId}
             required
             options={students.map(student => ({
-              value: student.id,
+              value: student.id.toString(),
               label: student.name
             }))}
             placeholder="Buscar estudiante..."

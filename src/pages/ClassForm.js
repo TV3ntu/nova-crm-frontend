@@ -6,6 +6,7 @@ import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Select from '../components/common/Select';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { classesAPI, teachersAPI } from '../services/api';
 
 const ClassForm = () => {
   const navigate = useNavigate();
@@ -14,6 +15,8 @@ const ClassForm = () => {
   const isEditing = !!id;
 
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(isEditing);
+  const [teachers, setTeachers] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -25,12 +28,6 @@ const ClassForm = () => {
     maxStudents: 20
   });
   const [errors, setErrors] = useState({});
-
-  const teachers = [
-    { value: '1', label: 'Elena Martínez' },
-    { value: '2', label: 'Carmen López' },
-    { value: '3', label: 'Ana Rodríguez' }
-  ];
 
   const daysOfWeek = [
     { value: 'Lunes', label: 'Lunes' },
@@ -52,23 +49,51 @@ const ClassForm = () => {
   ];
 
   useEffect(() => {
+    loadTeachers();
     if (isEditing) {
-      setLoading(true);
-      setTimeout(() => {
-        setFormData({
-          name: 'Ballet Clásico Avanzado',
-          description: 'Clase avanzada de ballet clásico con técnica refinada',
-          teacherId: '1',
-          day: 'Lunes',
-          startTime: '18:00',
-          duration: 90,
-          price: '800',
-          maxStudents: 20
-        });
-        setLoading(false);
-      }, 1000);
+      loadClassData();
     }
-  }, [isEditing]);
+  }, [isEditing, id]);
+
+  const loadTeachers = async () => {
+    try {
+      const response = await teachersAPI.getAll();
+      const teacherOptions = response.data.map(teacher => ({
+        value: teacher.id.toString(),
+        label: teacher.name
+      }));
+      setTeachers(teacherOptions);
+    } catch (error) {
+      console.error('Error loading teachers:', error);
+      // Fallback to empty array if teachers can't be loaded
+      setTeachers([]);
+    }
+  };
+
+  const loadClassData = async () => {
+    setInitialLoading(true);
+    try {
+      const response = await classesAPI.getById(id);
+      const classData = response.data;
+      
+      setFormData({
+        name: classData.name || '',
+        description: classData.description || '',
+        teacherId: classData.teacherId?.toString() || '',
+        day: classData.day || '',
+        startTime: classData.startTime || '',
+        duration: classData.duration || 90,
+        price: classData.price?.toString() || '',
+        maxStudents: classData.maxStudents || 20
+      });
+    } catch (error) {
+      console.error('Error loading class:', error);
+      showError('Error al cargar los datos de la clase');
+      navigate('/classes');
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -124,17 +149,30 @@ const ClassForm = () => {
     setLoading(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      showSuccess(
-        isEditing 
-          ? 'Clase actualizada exitosamente' 
-          : 'Clase creada exitosamente'
-      );
+      const classData = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        teacherId: parseInt(formData.teacherId),
+        day: formData.day,
+        startTime: formData.startTime,
+        duration: parseInt(formData.duration),
+        price: parseFloat(formData.price),
+        maxStudents: parseInt(formData.maxStudents)
+      };
+
+      if (isEditing) {
+        await classesAPI.update(id, classData);
+        showSuccess('Clase actualizada exitosamente');
+      } else {
+        await classesAPI.create(classData);
+        showSuccess('Clase creada exitosamente');
+      }
       
       navigate('/classes');
     } catch (error) {
-      showError('Error al guardar la clase');
+      console.error('Error saving class:', error);
+      const errorMessage = error.response?.data?.message || 'Error al guardar la clase';
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -151,7 +189,7 @@ const ClassForm = () => {
     return `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
   };
 
-  if (loading && isEditing) {
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />

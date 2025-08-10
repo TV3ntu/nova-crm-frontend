@@ -6,57 +6,73 @@ import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { classesAPI } from '../services/api';
 
 const ClassDetail = () => {
   const { id } = useParams();
   const [classData, setClassData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const loadClass = async () => {
-      setLoading(true);
-      
-      setTimeout(() => {
-        setClassData({
-          id: 1,
-          name: 'Ballet Clásico Avanzado',
-          description: 'Clase avanzada de ballet clásico con técnica refinada y trabajo en barra y centro',
-          teacher: {
-            id: 1,
-            name: 'Elena Martínez',
-            avatar: null
-          },
-          schedule: {
-            day: 'Lunes',
-            startTime: '18:00',
-            endTime: '19:30',
-            duration: 90
-          },
-          price: 800,
-          maxStudents: 20,
-          currentStudents: 15,
-          status: 'active',
-          enrolledStudents: [
-            { id: 1, name: 'María García', avatar: null, enrollmentDate: '2024-01-15', paymentStatus: 'up_to_date' },
-            { id: 2, name: 'Ana López', avatar: null, enrollmentDate: '2024-01-10', paymentStatus: 'overdue' },
-            { id: 3, name: 'Carmen Silva', avatar: null, enrollmentDate: '2024-01-20', paymentStatus: 'up_to_date' },
-            { id: 4, name: 'Isabella Rodríguez', avatar: null, enrollmentDate: '2024-01-25', paymentStatus: 'up_to_date' },
-            { id: 5, name: 'Sofía Martín', avatar: null, enrollmentDate: '2024-02-01', paymentStatus: 'pending' }
-          ],
-          monthlyRevenue: 12000,
-          attendanceRate: 85,
-          statistics: {
-            totalRevenue: 72000,
-            averageAttendance: 14,
-            retentionRate: 92
-          }
-        });
-        setLoading(false);
-      }, 1000);
-    };
-
     loadClass();
   }, [id]);
+
+  const loadClass = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await classesAPI.getById(id);
+      const apiClassData = response.data;
+      
+      // Transform API data to match component expectations
+      setClassData({
+        id: apiClassData.id,
+        name: apiClassData.name,
+        description: apiClassData.description,
+        teacher: {
+          id: apiClassData.teacherId,
+          name: apiClassData.teacherName || 'Sin asignar',
+          avatar: apiClassData.teacherAvatar || null
+        },
+        schedule: {
+          day: apiClassData.day,
+          startTime: apiClassData.startTime,
+          endTime: apiClassData.endTime || calculateEndTime(apiClassData.startTime, apiClassData.duration),
+          duration: apiClassData.duration || 90
+        },
+        price: apiClassData.price,
+        maxStudents: apiClassData.maxStudents || 20,
+        currentStudents: apiClassData.enrolledStudents?.length || 0,
+        status: apiClassData.status || 'active',
+        enrolledStudents: apiClassData.enrolledStudents || [],
+        monthlyRevenue: apiClassData.monthlyRevenue || 0,
+        attendanceRate: apiClassData.attendanceRate || 0,
+        statistics: apiClassData.statistics || {
+          totalRevenue: 0,
+          averageAttendance: 0,
+          retentionRate: 0
+        }
+      });
+    } catch (error) {
+      console.error('Error loading class:', error);
+      setError('Error al cargar los datos de la clase');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateEndTime = (startTime, duration) => {
+    if (!startTime || !duration) return '';
+    
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const totalMinutes = hours * 60 + minutes + parseInt(duration);
+    const endHours = Math.floor(totalMinutes / 60);
+    const endMinutes = totalMinutes % 60;
+    
+    return `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+  };
 
   const getPaymentStatusBadge = (status) => {
     switch (status) {
@@ -82,14 +98,22 @@ const ClassDetail = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600 mb-4">{error}</p>
+        <Button onClick={loadClass}>Reintentar</Button>
+      </div>
+    );
+  }
+
   if (!classData) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-semibold text-gray-900">Clase no encontrada</h2>
-        <p className="text-gray-600 mt-2">La clase que buscas no existe.</p>
-        <Button as={Link} to="/classes" className="mt-4">
-          Volver a Clases
-        </Button>
+        <p className="text-gray-600">Clase no encontrada</p>
+        <Link to="/classes">
+          <Button className="mt-4">Volver a Clases</Button>
+        </Link>
       </div>
     );
   }

@@ -6,87 +6,49 @@ import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { studentsAPI } from '../services/api';
 
 const StudentDetail = () => {
   const { id } = useParams();
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Simular carga de datos del estudiante
-    const loadStudent = async () => {
-      setLoading(true);
-      
-      setTimeout(() => {
-        setStudent({
-          id: 1,
-          name: 'María García',
-          email: 'maria.garcia@email.com',
-          phone: '+56 9 1234 5678',
-          birthDate: '1995-03-15',
-          address: 'Av. Providencia 1234, Santiago',
-          emergencyContact: 'Pedro García',
-          emergencyPhone: '+56 9 8765 4321',
-          avatar: null,
-          status: 'active',
-          enrolledClasses: [
-            {
-              id: 1,
-              name: 'Ballet Clásico',
-              teacher: 'Prof. Elena Martínez',
-              schedule: 'Lunes y Miércoles 18:00-19:30',
-              monthlyFee: 800
-            },
-            {
-              id: 2,
-              name: 'Jazz',
-              teacher: 'Prof. Carmen López',
-              schedule: 'Martes y Jueves 19:30-21:00',
-              monthlyFee: 700
-            }
-          ],
-          paymentHistory: [
-            {
-              id: 1,
-              date: '2024-01-15',
-              amount: 1500,
-              classes: ['Ballet Clásico', 'Jazz'],
-              status: 'completed',
-              method: 'Transferencia'
-            },
-            {
-              id: 2,
-              date: '2023-12-15',
-              amount: 1500,
-              classes: ['Ballet Clásico', 'Jazz'],
-              status: 'completed',
-              method: 'Efectivo'
-            },
-            {
-              id: 3,
-              date: '2023-11-15',
-              amount: 1500,
-              classes: ['Ballet Clásico', 'Jazz'],
-              status: 'completed',
-              method: 'Transferencia'
-            }
-          ],
-          upcomingPayments: [
-            {
-              id: 1,
-              dueDate: '2024-02-15',
-              amount: 1500,
-              classes: ['Ballet Clásico', 'Jazz'],
-              status: 'pending'
-            }
-          ]
-        });
-        setLoading(false);
-      }, 1000);
-    };
-
     loadStudent();
   }, [id]);
+
+  const loadStudent = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await studentsAPI.getById(id);
+      const studentData = response.data;
+      
+      // Transform API data to match component expectations
+      setStudent({
+        id: studentData.id,
+        name: studentData.name,
+        email: studentData.email,
+        phone: studentData.phone,
+        birthDate: studentData.birthDate,
+        address: studentData.address,
+        emergencyContact: studentData.emergencyContact,
+        emergencyPhone: studentData.emergencyPhone,
+        avatar: studentData.avatar || null,
+        status: studentData.status || 'active',
+        enrolledClasses: studentData.enrolledClasses || [],
+        paymentHistory: studentData.paymentHistory || [],
+        upcomingPayments: studentData.upcomingPayments || []
+      });
+    } catch (error) {
+      console.error('Error loading student:', error);
+      setError('Error al cargar los datos del estudiante');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -96,14 +58,22 @@ const StudentDetail = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600 mb-4">{error}</p>
+        <Button onClick={loadStudent}>Reintentar</Button>
+      </div>
+    );
+  }
+
   if (!student) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-semibold text-gray-900">Estudiante no encontrado</h2>
-        <p className="text-gray-600 mt-2">El estudiante que buscas no existe.</p>
-        <Button as={Link} to="/students" className="mt-4">
-          Volver a Estudiantes
-        </Button>
+        <p className="text-gray-600">Estudiante no encontrado</p>
+        <Link to="/students">
+          <Button className="mt-4">Volver a Estudiantes</Button>
+        </Link>
       </div>
     );
   }

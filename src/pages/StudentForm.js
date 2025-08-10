@@ -6,6 +6,7 @@ import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Select from '../components/common/Select';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { studentsAPI } from '../services/api';
 
 const StudentForm = () => {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ const StudentForm = () => {
   const isEditing = !!id;
 
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(isEditing);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -29,30 +31,43 @@ const StudentForm = () => {
   const availableClasses = [
     { value: 'ballet-clasico', label: 'Ballet Clásico - $800/mes' },
     { value: 'jazz', label: 'Jazz - $700/mes' },
-    { value: 'hip-hop', label: 'Hip Hop - $750/mes' },
-    { value: 'contemporaneo', label: 'Contemporáneo - $800/mes' },
-    { value: 'salsa', label: 'Salsa - $600/mes' }
+    { value: 'hip-hop', label: 'Hip Hop - $650/mes' },
+    { value: 'contemporaneo', label: 'Contemporáneo - $750/mes' },
+    { value: 'salsa', label: 'Salsa - $600/mes' },
+    { value: 'bachata', label: 'Bachata - $600/mes' },
+    { value: 'tango', label: 'Tango - $700/mes' }
   ];
 
   useEffect(() => {
     if (isEditing) {
-      // Simular carga de datos del estudiante
-      setLoading(true);
-      setTimeout(() => {
-        setFormData({
-          name: 'María García',
-          email: 'maria.garcia@email.com',
-          phone: '+56 9 1234 5678',
-          birthDate: '1995-03-15',
-          address: 'Av. Providencia 1234, Santiago',
-          emergencyContact: 'Pedro García',
-          emergencyPhone: '+56 9 8765 4321',
-          selectedClasses: ['ballet-clasico', 'jazz']
-        });
-        setLoading(false);
-      }, 1000);
+      loadStudentData();
     }
-  }, [isEditing]);
+  }, [isEditing, id]);
+
+  const loadStudentData = async () => {
+    setInitialLoading(true);
+    try {
+      const response = await studentsAPI.getById(id);
+      const student = response.data;
+      
+      setFormData({
+        name: student.name || '',
+        email: student.email || '',
+        phone: student.phone || '',
+        birthDate: student.birthDate || '',
+        address: student.address || '',
+        emergencyContact: student.emergencyContact || '',
+        emergencyPhone: student.emergencyPhone || '',
+        selectedClasses: student.classes?.map(cls => cls.id) || []
+      });
+    } catch (error) {
+      console.error('Error loading student:', error);
+      showError('Error al cargar los datos del estudiante');
+      navigate('/students');
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -115,18 +130,30 @@ const StudentForm = () => {
     setLoading(true);
     
     try {
-      // Simular guardado
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      showSuccess(
-        isEditing 
-          ? 'Estudiante actualizado exitosamente' 
-          : 'Estudiante creado exitosamente'
-      );
+      const studentData = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        birthDate: formData.birthDate,
+        address: formData.address.trim(),
+        emergencyContact: formData.emergencyContact.trim(),
+        emergencyPhone: formData.emergencyPhone.trim(),
+        classes: formData.selectedClasses
+      };
+
+      if (isEditing) {
+        await studentsAPI.update(id, studentData);
+        showSuccess('Estudiante actualizado exitosamente');
+      } else {
+        await studentsAPI.create(studentData);
+        showSuccess('Estudiante creado exitosamente');
+      }
       
       navigate('/students');
     } catch (error) {
-      showError('Error al guardar el estudiante');
+      console.error('Error saving student:', error);
+      const errorMessage = error.response?.data?.message || 'Error al guardar el estudiante';
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -136,9 +163,11 @@ const StudentForm = () => {
     const classPrices = {
       'ballet-clasico': 800,
       'jazz': 700,
-      'hip-hop': 750,
-      'contemporaneo': 800,
-      'salsa': 600
+      'hip-hop': 650,
+      'contemporaneo': 750,
+      'salsa': 600,
+      'bachata': 600,
+      'tango': 700
     };
     
     return formData.selectedClasses.reduce((total, classValue) => {
@@ -146,7 +175,7 @@ const StudentForm = () => {
     }, 0);
   };
 
-  if (loading && isEditing) {
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />

@@ -10,6 +10,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 const Settings = () => {
   const { showSuccess, showError } = useNotification();
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('studio');
   
   const [studioSettings, setStudioSettings] = useState({
@@ -24,26 +25,73 @@ const Settings = () => {
   const [paymentSettings, setPaymentSettings] = useState({
     paymentDueDay: '10',
     lateFeePercentage: '15',
-    gracePeriodDays: '3',
-    acceptedMethods: ['efectivo', 'transferencia', 'tarjeta'],
-    bankAccount: 'Banco Estado - 12345678-9',
+    acceptedMethods: ['efectivo', 'transferencia'],
+    bankAccount: '12345678-9',
     paypalEmail: 'pagos@novadance.com'
   });
 
   const [userSettings, setUserSettings] = useState({
     maxUsers: '5',
     sessionTimeout: '24',
-    requirePasswordChange: true,
+    backupFrequency: 'daily',
     enableNotifications: true,
-    backupFrequency: 'daily'
+    requireStrongPasswords: true
   });
 
-  const tabs = [
-    { id: 'studio', name: 'Información del Estudio', icon: BuildingStorefrontIcon },
-    { id: 'payments', name: 'Configuración de Pagos', icon: CreditCardIcon },
-    { id: 'users', name: 'Usuarios y Seguridad', icon: UserGroupIcon },
-    { id: 'system', name: 'Sistema', icon: Cog6ToothIcon }
-  ];
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    setInitialLoading(true);
+    try {
+      const response = await settingsAPI.getAll();
+      setStudioSettings(response.data.studio);
+      setPaymentSettings(response.data.payment);
+      setUserSettings(response.data.user);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      showError('Error al cargar la configuración');
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  const handleSave = async (section) => {
+    setLoading(true);
+    
+    try {
+      let settingsData;
+      let sectionName;
+      
+      switch (section) {
+        case 'estudio':
+          settingsData = studioSettings;
+          sectionName = 'estudio';
+          break;
+        case 'pagos':
+          settingsData = paymentSettings;
+          sectionName = 'pagos';
+          break;
+        case 'usuarios':
+          settingsData = userSettings;
+          sectionName = 'usuarios';
+          break;
+        default:
+          throw new Error('Sección de configuración no válida');
+      }
+
+      await settingsAPI.update(section, settingsData);
+      
+      showSuccess(`Configuración de ${sectionName} guardada exitosamente`);
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      const errorMessage = error.response?.data?.message || 'Error al guardar la configuración';
+      showError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleStudioChange = (e) => {
     const { name, value } = e.target;
@@ -78,20 +126,12 @@ const Settings = () => {
     }));
   };
 
-  const handleSave = async (section) => {
-    setLoading(true);
-    
-    try {
-      // Simular guardado
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      showSuccess(`Configuración de ${section} guardada exitosamente`);
-    } catch (error) {
-      showError('Error al guardar la configuración');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const tabs = [
+    { id: 'studio', name: 'Información del Estudio', icon: BuildingStorefrontIcon },
+    { id: 'payments', name: 'Configuración de Pagos', icon: CreditCardIcon },
+    { id: 'users', name: 'Usuarios y Seguridad', icon: UserGroupIcon },
+    { id: 'system', name: 'Sistema', icon: Cog6ToothIcon }
+  ];
 
   const renderStudioSettings = () => (
     <div className="space-y-6">
@@ -285,13 +325,13 @@ const Settings = () => {
           <label className="flex items-center">
             <input
               type="checkbox"
-              name="requirePasswordChange"
-              checked={userSettings.requirePasswordChange}
+              name="requireStrongPasswords"
+              checked={userSettings.requireStrongPasswords}
               onChange={handleUserChange}
               className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
             />
             <span className="ml-2 text-sm text-gray-900">
-              Requerir cambio de contraseña cada 90 días
+              Requerir contraseñas fuertes
             </span>
           </label>
           
