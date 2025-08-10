@@ -1,124 +1,122 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusIcon, CalendarDaysIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { 
+  PlusIcon, 
+  CalendarDaysIcon, 
+  ClockIcon,
+  UserGroupIcon,
+  AcademicCapIcon,
+  FunnelIcon,
+  MagnifyingGlassIcon
+} from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
+import Input from '../components/common/Input';
+import Select from '../components/common/Select';
 import Badge from '../components/common/Badge';
+import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { useApi } from '../hooks/useApi';
+import { classesAPI } from '../services/api';
 
 const Classes = () => {
-  const [classes, setClasses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'list'
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [dayFilter, setDayFilter] = useState('');
 
-  const daysOfWeek = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-  const timeSlots = ['15:00', '16:30', '18:00', '19:30', '20:00', '21:00'];
+  const {
+    data: classes,
+    loading,
+    error,
+    refetch
+  } = useApi(
+    () => classesAPI.getAll({
+      search: searchTerm,
+      type: typeFilter,
+      status: statusFilter,
+      day: dayFilter
+    }),
+    [searchTerm, typeFilter, statusFilter, dayFilter]
+  );
 
-  useEffect(() => {
-    const loadClasses = async () => {
-      setLoading(true);
-      
-      setTimeout(() => {
-        setClasses([
-          {
-            id: 1,
-            name: 'Ballet Clásico Avanzado',
-            teacher: 'Elena Martínez',
-            teacherId: 1,
-            day: 'Lunes',
-            startTime: '18:00',
-            duration: 90,
-            price: 800,
-            maxStudents: 20,
-            currentStudents: 15,
-            status: 'active',
-            description: 'Clase avanzada de ballet clásico con técnica refinada'
-          },
-          {
-            id: 2,
-            name: 'Jazz Intermedio',
-            teacher: 'Carmen López',
-            teacherId: 2,
-            day: 'Martes',
-            startTime: '20:00',
-            duration: 90,
-            price: 700,
-            maxStudents: 15,
-            currentStudents: 18,
-            status: 'active',
-            description: 'Clase de jazz con énfasis en expresión y técnica'
-          },
-          {
-            id: 3,
-            name: 'Hip Hop Principiantes',
-            teacher: 'Carmen López',
-            teacherId: 2,
-            day: 'Viernes',
-            startTime: '19:30',
-            duration: 60,
-            price: 750,
-            maxStudents: 20,
-            currentStudents: 20,
-            status: 'active',
-            description: 'Introducción al hip hop para principiantes'
-          },
-          {
-            id: 4,
-            name: 'Contemporáneo',
-            teacher: 'Elena Martínez',
-            teacherId: 1,
-            day: 'Miércoles',
-            startTime: '19:30',
-            duration: 90,
-            price: 800,
-            maxStudents: 15,
-            currentStudents: 12,
-            status: 'active',
-            description: 'Danza contemporánea con técnica moderna'
-          },
-          {
-            id: 5,
-            name: 'Salsa Avanzada',
-            teacher: 'Ana Rodríguez',
-            teacherId: 3,
-            day: 'Sábado',
-            startTime: '15:00',
-            duration: 90,
-            price: 600,
-            maxStudents: 16,
-            currentStudents: 16,
-            status: 'active',
-            description: 'Salsa avanzada con figuras complejas'
-          }
-        ]);
-        setLoading(false);
-      }, 1000);
-    };
-
-    loadClasses();
-  }, []);
-
-  const getClassesForDayAndTime = (day, time) => {
-    return classes.filter(cls => cls.day === day && cls.startTime === time);
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'active':
+        return <Badge variant="success">Activa</Badge>;
+      case 'cancelled':
+        return <Badge variant="danger">Cancelada</Badge>;
+      case 'completed':
+        return <Badge variant="secondary">Completada</Badge>;
+      case 'scheduled':
+        return <Badge variant="primary">Programada</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
   };
 
-  const getCapacityColor = (current, max) => {
+  const getCapacityBadge = (current, max) => {
     const percentage = (current / max) * 100;
-    if (percentage >= 100) return 'text-red-600 bg-red-50';
-    if (percentage >= 80) return 'text-yellow-600 bg-yellow-50';
-    return 'text-green-600 bg-green-50';
+    if (percentage >= 90) {
+      return <Badge variant="danger">Llena ({current}/{max})</Badge>;
+    } else if (percentage >= 70) {
+      return <Badge variant="warning">Casi llena ({current}/{max})</Badge>;
+    } else {
+      return <Badge variant="success">Disponible ({current}/{max})</Badge>;
+    }
   };
 
-  const getStatusBadge = (current, max) => {
-    if (current >= max) return <Badge variant="danger">Llena</Badge>;
-    if (current >= max * 0.8) return <Badge variant="warning">Casi llena</Badge>;
-    return <Badge variant="success">Disponible</Badge>;
+  const formatTime = (time) => {
+    return new Date(`2000-01-01T${time}`).toLocaleTimeString('es-CL', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
   };
+
+  const formatDay = (day) => {
+    const days = {
+      'monday': 'Lunes',
+      'tuesday': 'Martes', 
+      'wednesday': 'Miércoles',
+      'thursday': 'Jueves',
+      'friday': 'Viernes',
+      'saturday': 'Sábado',
+      'sunday': 'Domingo'
+    };
+    return days[day] || day;
+  };
+
+  // Filtrar clases localmente si hay datos
+  const filteredClasses = classes ? classes.filter(classItem => {
+    const matchesSearch = !searchTerm || 
+      classItem.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      classItem.teacher?.name.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesType = !typeFilter || classItem.type === typeFilter;
+    const matchesStatus = !statusFilter || classItem.status === statusFilter;
+    const matchesDay = !dayFilter || classItem.schedule?.day === dayFilter;
+    
+    return matchesSearch && matchesType && matchesStatus && matchesDay;
+  }) : [];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center min-h-96">
         <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <CalendarDaysIcon className="mx-auto h-12 w-12 text-red-500 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Error al cargar clases</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <Button onClick={refetch} variant="primary">
+          Reintentar
+        </Button>
       </div>
     );
   }
@@ -129,157 +127,224 @@ const Classes = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Clases</h1>
-          <p className="text-gray-600">Gestiona las clases y horarios del estudio</p>
+          <p className="text-gray-600">Gestión de clases y horarios</p>
         </div>
         <div className="flex space-x-3">
-          <div className="flex rounded-lg border border-gray-300">
-            <button
-              onClick={() => setViewMode('calendar')}
-              className={`px-4 py-2 text-sm font-medium rounded-l-lg ${
-                viewMode === 'calendar'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <CalendarDaysIcon className="h-4 w-4 inline mr-2" />
-              Calendario
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`px-4 py-2 text-sm font-medium rounded-r-lg border-l ${
-                viewMode === 'list'
-                  ? 'bg-primary-600 text-white'
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              Lista
-            </button>
-          </div>
+          <Button as={Link} to="/classes/calendar" variant="secondary" icon={CalendarDaysIcon}>
+            Ver Calendario
+          </Button>
           <Button as={Link} to="/classes/new" icon={PlusIcon}>
             Nueva Clase
           </Button>
         </div>
       </div>
 
-      {viewMode === 'calendar' ? (
-        /* Calendar View */
-        <Card className="p-6">
-          <div className="overflow-x-auto">
-            <div className="min-w-full">
-              <div className="grid grid-cols-8 gap-2 mb-4">
-                <div className="font-semibold text-gray-900 p-2">Horario</div>
-                {daysOfWeek.map(day => (
-                  <div key={day} className="font-semibold text-gray-900 p-2 text-center">
-                    {day}
-                  </div>
-                ))}
-              </div>
-              
-              {timeSlots.map(time => (
-                <div key={time} className="grid grid-cols-8 gap-2 mb-2">
-                  <div className="p-2 text-sm font-medium text-gray-600 bg-gray-50 rounded">
-                    {time}
-                  </div>
-                  {daysOfWeek.map(day => {
-                    const dayClasses = getClassesForDayAndTime(day, time);
-                    return (
-                      <div key={`${day}-${time}`} className="min-h-[80px] p-1">
-                        {dayClasses.map(cls => (
-                          <div
-                            key={cls.id}
-                            className={`
-                              p-2 rounded-lg text-xs cursor-pointer hover:shadow-md transition-shadow
-                              ${getCapacityColor(cls.currentStudents, cls.maxStudents)}
-                            `}
-                            onClick={() => window.location.href = `/classes/${cls.id}`}
-                          >
-                            <div className="font-semibold truncate">{cls.name}</div>
-                            <div className="text-xs opacity-75">{cls.teacher}</div>
-                            <div className="text-xs mt-1">
-                              {cls.currentStudents}/{cls.maxStudents}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
-      ) : (
-        /* List View */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {classes.map((cls) => (
-            <Card key={cls.id} className="p-6 hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{cls.name}</h3>
-                  <p className="text-sm text-gray-600">{cls.teacher}</p>
-                </div>
-                {getStatusBadge(cls.currentStudents, cls.maxStudents)}
-              </div>
-
-              <div className="space-y-2 mb-4">
-                <div className="flex items-center text-sm text-gray-600">
-                  <CalendarDaysIcon className="h-4 w-4 mr-2" />
-                  {cls.day} {cls.startTime} ({cls.duration} min)
-                </div>
-                
-                <div className="flex items-center text-sm text-gray-600">
-                  <UserGroupIcon className="h-4 w-4 mr-2" />
-                  {cls.currentStudents}/{cls.maxStudents} estudiantes
-                </div>
-                
-                <div className="text-sm text-gray-600">
-                  <span className="font-semibold">${cls.price.toLocaleString()}</span> por mes
-                </div>
-              </div>
-
-              <div className="mb-4">
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className={`h-2 rounded-full ${
-                      cls.currentStudents >= cls.maxStudents 
-                        ? 'bg-red-500' 
-                        : cls.currentStudents >= cls.maxStudents * 0.8 
-                        ? 'bg-yellow-500' 
-                        : 'bg-green-500'
-                    }`}
-                    style={{ width: `${Math.min((cls.currentStudents / cls.maxStudents) * 100, 100)}%` }}
-                  ></div>
-                </div>
-              </div>
-
-              <p className="text-sm text-gray-600 mb-4">{cls.description}</p>
-
-              <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                <Button as={Link} to={`/classes/${cls.id}`} variant="ghost" size="sm">
-                  Ver Detalle
-                </Button>
-                <Button as={Link} to={`/classes/${cls.id}/edit`} variant="secondary" size="sm">
-                  Editar
-                </Button>
-              </div>
-            </Card>
-          ))}
+      {/* Filters */}
+      <Card className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <Input
+            placeholder="Buscar por nombre o profesor..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            icon={MagnifyingGlassIcon}
+          />
+          
+          <Select
+            placeholder="Tipo de clase"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            options={[
+              { value: '', label: 'Todos los tipos' },
+              { value: 'Ballet Clásico', label: 'Ballet Clásico' },
+              { value: 'Jazz', label: 'Jazz' },
+              { value: 'Hip Hop', label: 'Hip Hop' },
+              { value: 'Contemporáneo', label: 'Contemporáneo' },
+              { value: 'Salsa', label: 'Salsa' },
+              { value: 'Bachata', label: 'Bachata' }
+            ]}
+          />
+          
+          <Select
+            placeholder="Estado"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={[
+              { value: '', label: 'Todos los estados' },
+              { value: 'active', label: 'Activa' },
+              { value: 'scheduled', label: 'Programada' },
+              { value: 'cancelled', label: 'Cancelada' },
+              { value: 'completed', label: 'Completada' }
+            ]}
+          />
+          
+          <Select
+            placeholder="Día"
+            value={dayFilter}
+            onChange={(e) => setDayFilter(e.target.value)}
+            options={[
+              { value: '', label: 'Todos los días' },
+              { value: 'monday', label: 'Lunes' },
+              { value: 'tuesday', label: 'Martes' },
+              { value: 'wednesday', label: 'Miércoles' },
+              { value: 'thursday', label: 'Jueves' },
+              { value: 'friday', label: 'Viernes' },
+              { value: 'saturday', label: 'Sábado' },
+              { value: 'sunday', label: 'Domingo' }
+            ]}
+          />
+          
+          <Button
+            variant="secondary"
+            icon={FunnelIcon}
+            onClick={() => {
+              setSearchTerm('');
+              setTypeFilter('');
+              setStatusFilter('');
+              setDayFilter('');
+            }}
+          >
+            Limpiar Filtros
+          </Button>
         </div>
-      )}
+      </Card>
 
-      {classes.length === 0 && (
+      {/* Classes Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredClasses.map((classItem) => (
+          <Card key={classItem.id} className="p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">{classItem.name}</h3>
+                <p className="text-sm text-gray-600">{classItem.type}</p>
+              </div>
+              {getStatusBadge(classItem.status)}
+            </div>
+
+            <div className="space-y-3 mb-4">
+              <div className="flex items-center space-x-2">
+                <AcademicCapIcon className="h-4 w-4 text-gray-400" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    {classItem.teacher?.name || 'Sin asignar'}
+                  </p>
+                  <p className="text-xs text-gray-500">Profesor</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <CalendarDaysIcon className="h-4 w-4 text-gray-400" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    {classItem.schedule ? formatDay(classItem.schedule.day) : 'Sin programar'}
+                  </p>
+                  <p className="text-xs text-gray-500">Día de la semana</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <ClockIcon className="h-4 w-4 text-gray-400" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    {classItem.schedule ? 
+                      `${formatTime(classItem.schedule.startTime)} - ${formatTime(classItem.schedule.endTime)}` 
+                      : 'Sin horario'
+                    }
+                  </p>
+                  <p className="text-xs text-gray-500">Horario</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <UserGroupIcon className="h-4 w-4 text-gray-400" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-900">Estudiantes</p>
+                    {getCapacityBadge(classItem.enrolledStudents || 0, classItem.maxCapacity || 0)}
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                    <div 
+                      className="bg-primary-600 h-2 rounded-full" 
+                      style={{ 
+                        width: `${Math.min(((classItem.enrolledStudents || 0) / (classItem.maxCapacity || 1)) * 100, 100)}%` 
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
+
+              {classItem.description && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Descripción</p>
+                  <p className="text-sm text-gray-900 mt-1">{classItem.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Precio</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    ${classItem.price?.toLocaleString() || 'No definido'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Duración</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {classItem.duration || 'No definida'} min
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+              <Button as={Link} to={`/classes/${classItem.id}`} variant="ghost" size="sm">
+                Ver Detalle
+              </Button>
+              <Button as={Link} to={`/classes/${classItem.id}/edit`} variant="secondary" size="sm">
+                Editar
+              </Button>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {filteredClasses.length === 0 && !loading && (
         <Card className="p-12 text-center">
           <div className="mx-auto h-12 w-12 text-gray-400">
-            <CalendarDaysIcon />
+            <CalendarDaysIcon className="w-full h-full" />
           </div>
           <h3 className="mt-2 text-sm font-medium text-gray-900">No hay clases</h3>
           <p className="mt-1 text-sm text-gray-500">
-            Comienza agregando la primera clase del estudio.
+            {searchTerm || typeFilter || statusFilter || dayFilter
+              ? 'No se encontraron clases que coincidan con los filtros aplicados.'
+              : 'No hay clases registradas en el sistema.'
+            }
           </p>
           <div className="mt-6">
             <Button as={Link} to="/classes/new" icon={PlusIcon}>
               Crear Primera Clase
             </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Summary */}
+      {filteredClasses.length > 0 && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>
+              Mostrando {filteredClasses.length} de {classes?.length || 0} clases
+            </span>
+            <div className="flex space-x-4">
+              <span>
+                Activas: {filteredClasses.filter(c => c.status === 'active').length}
+              </span>
+              <span>
+                Programadas: {filteredClasses.filter(c => c.status === 'scheduled').length}
+              </span>
+              <span>
+                Total estudiantes: {filteredClasses.reduce((total, c) => total + (c.enrolledStudents || 0), 0)}
+              </span>
+            </div>
           </div>
         </Card>
       )}

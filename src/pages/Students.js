@@ -1,6 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusIcon, MagnifyingGlassIcon, FunnelIcon } from '@heroicons/react/24/outline';
+import { 
+  PlusIcon, 
+  MagnifyingGlassIcon, 
+  FunnelIcon,
+  UserGroupIcon
+} from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
@@ -8,106 +13,96 @@ import Select from '../components/common/Select';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { useApi } from '../hooks/useApi';
+import { studentsAPI } from '../services/api';
 
 const Students = () => {
-  const [students, setStudents] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [classFilter, setClassFilter] = useState('');
 
-  useEffect(() => {
-    // Simular carga de estudiantes
-    const loadStudents = async () => {
-      setLoading(true);
-      
-      setTimeout(() => {
-        setStudents([
-          {
-            id: 1,
-            name: 'María García',
-            email: 'maria.garcia@email.com',
-            phone: '+56 9 1234 5678',
-            avatar: null,
-            status: 'active',
-            classes: ['Ballet Clásico', 'Jazz'],
-            paymentStatus: 'up_to_date',
-            nextPayment: '2024-02-15',
-            totalOwed: 0
-          },
-          {
-            id: 2,
-            name: 'Ana López',
-            email: 'ana.lopez@email.com',
-            phone: '+56 9 8765 4321',
-            avatar: null,
-            status: 'active',
-            classes: ['Hip Hop'],
-            paymentStatus: 'overdue',
-            nextPayment: '2024-01-10',
-            totalOwed: 1200
-          },
-          {
-            id: 3,
-            name: 'Carmen Silva',
-            email: 'carmen.silva@email.com',
-            phone: '+56 9 5555 1234',
-            avatar: null,
-            status: 'active',
-            classes: ['Contemporáneo', 'Ballet Clásico'],
-            paymentStatus: 'up_to_date',
-            nextPayment: '2024-02-20',
-            totalOwed: 0
-          },
-          {
-            id: 4,
-            name: 'Isabella Rodríguez',
-            email: 'isabella.rodriguez@email.com',
-            phone: '+56 9 9999 8888',
-            avatar: null,
-            status: 'inactive',
-            classes: ['Salsa'],
-            paymentStatus: 'up_to_date',
-            nextPayment: null,
-            totalOwed: 0
-          }
-        ]);
-        setLoading(false);
-      }, 1000);
-    };
-
-    loadStudents();
-  }, []);
-
-  const getPaymentStatusBadge = (status, totalOwed) => {
-    if (status === 'overdue') {
-      return <Badge variant="danger">Mora ${totalOwed}</Badge>;
-    }
-    if (status === 'pending') {
-      return <Badge variant="warning">Pendiente</Badge>;
-    }
-    return <Badge variant="success">Al día</Badge>;
-  };
+  const {
+    data: students,
+    loading,
+    error,
+    refetch
+  } = useApi(
+    () => studentsAPI.getAll({
+      search: searchTerm,
+      status: statusFilter,
+      class: classFilter
+    }),
+    [searchTerm, statusFilter, classFilter]
+  );
 
   const getStatusBadge = (status) => {
-    return status === 'active' 
-      ? <Badge variant="success">Activo</Badge>
-      : <Badge variant="gray">Inactivo</Badge>;
+    switch (status) {
+      case 'active':
+        return <Badge variant="success">Activo</Badge>;
+      case 'inactive':
+        return <Badge variant="secondary">Inactivo</Badge>;
+      case 'suspended':
+        return <Badge variant="danger">Suspendido</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
   };
 
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.email.toLowerCase().includes(searchTerm.toLowerCase());
+  const getPaymentStatusBadge = (paymentStatus, totalOwed) => {
+    switch (paymentStatus) {
+      case 'up_to_date':
+        return <Badge variant="success">Al día</Badge>;
+      case 'overdue':
+        return (
+          <div>
+            <Badge variant="danger">Vencido</Badge>
+            {totalOwed > 0 && (
+              <p className="text-xs text-red-600 mt-1">
+                Debe: ${totalOwed.toLocaleString()}
+              </p>
+            )}
+          </div>
+        );
+      case 'pending':
+        return <Badge variant="warning">Pendiente</Badge>;
+      default:
+        return <Badge variant="secondary">{paymentStatus}</Badge>;
+    }
+  };
+
+  // Filtrar estudiantes localmente si hay datos
+  const filteredStudents = students ? students.filter(student => {
+    const matchesSearch = !searchTerm || 
+      student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      student.email.toLowerCase().includes(searchTerm.toLowerCase());
+    
     const matchesStatus = !statusFilter || student.status === statusFilter;
-    const matchesClass = !classFilter || student.classes.some(cls => cls.includes(classFilter));
+    
+    const matchesClass = !classFilter || 
+      (student.classes && student.classes.some(cls => 
+        cls.toLowerCase().includes(classFilter.toLowerCase())
+      ));
     
     return matchesSearch && matchesStatus && matchesClass;
-  });
+  }) : [];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center min-h-96">
         <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <UserGroupIcon className="mx-auto h-12 w-12 text-red-500 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Error al cargar estudiantes</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <Button onClick={refetch} variant="primary">
+          Reintentar
+        </Button>
       </div>
     );
   }
@@ -118,7 +113,7 @@ const Students = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Estudiantes</h1>
-          <p className="text-gray-600">Gestiona los estudiantes del estudio</p>
+          <p className="text-gray-600">Gestión de estudiantes del estudio</p>
         </div>
         <Button as={Link} to="/students/new" icon={PlusIcon}>
           Nuevo Estudiante
@@ -128,23 +123,22 @@ const Students = () => {
       {/* Filters */}
       <Card className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Buscar estudiantes..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+          <Input
+            placeholder="Buscar por nombre o email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            icon={MagnifyingGlassIcon}
+          />
           
           <Select
             placeholder="Estado"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             options={[
+              { value: '', label: 'Todos los estados' },
               { value: 'active', label: 'Activo' },
-              { value: 'inactive', label: 'Inactivo' }
+              { value: 'inactive', label: 'Inactivo' },
+              { value: 'suspended', label: 'Suspendido' }
             ]}
           />
           
@@ -153,6 +147,7 @@ const Students = () => {
             value={classFilter}
             onChange={(e) => setClassFilter(e.target.value)}
             options={[
+              { value: '', label: 'Todas las clases' },
               { value: 'Ballet', label: 'Ballet Clásico' },
               { value: 'Jazz', label: 'Jazz' },
               { value: 'Hip Hop', label: 'Hip Hop' },
@@ -170,12 +165,12 @@ const Students = () => {
               setClassFilter('');
             }}
           >
-            Limpiar
+            Limpiar Filtros
           </Button>
         </div>
       </Card>
 
-      {/* Students List */}
+      {/* Students Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredStudents.map((student) => (
           <Card key={student.id} className="p-6 hover:shadow-md transition-shadow">
@@ -199,12 +194,12 @@ const Students = () => {
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Clases</p>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {student.classes.map((cls, index) => (
-                    <Badge key={index} variant="primary" size="sm">{cls}</Badge>
+                  {student.classes && student.classes.map((className, index) => (
+                    <Badge key={index} variant="primary" size="sm">{className}</Badge>
                   ))}
                 </div>
               </div>
-              
+
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Estado de Pago</p>
                 <div className="mt-1">
@@ -225,7 +220,7 @@ const Students = () => {
         ))}
       </div>
 
-      {filteredStudents.length === 0 && (
+      {filteredStudents.length === 0 && !loading && (
         <Card className="p-12 text-center">
           <div className="mx-auto h-12 w-12 text-gray-400">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -234,12 +229,34 @@ const Students = () => {
           </div>
           <h3 className="mt-2 text-sm font-medium text-gray-900">No hay estudiantes</h3>
           <p className="mt-1 text-sm text-gray-500">
-            No se encontraron estudiantes que coincidan con los filtros aplicados.
+            {searchTerm || statusFilter || classFilter 
+              ? 'No se encontraron estudiantes que coincidan con los filtros aplicados.'
+              : 'No hay estudiantes registrados en el sistema.'
+            }
           </p>
           <div className="mt-6">
             <Button as={Link} to="/students/new" icon={PlusIcon}>
               Agregar Estudiante
             </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Summary */}
+      {filteredStudents.length > 0 && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>
+              Mostrando {filteredStudents.length} de {students?.length || 0} estudiantes
+            </span>
+            <div className="flex space-x-4">
+              <span>
+                Activos: {filteredStudents.filter(s => s.status === 'active').length}
+              </span>
+              <span>
+                Con pagos vencidos: {filteredStudents.filter(s => s.paymentStatus === 'overdue').length}
+              </span>
+            </div>
           </div>
         </Card>
       )}

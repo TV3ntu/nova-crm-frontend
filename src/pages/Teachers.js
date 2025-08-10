@@ -1,88 +1,86 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusIcon, MagnifyingGlassIcon, StarIcon } from '@heroicons/react/24/outline';
+import { 
+  PlusIcon, 
+  MagnifyingGlassIcon, 
+  FunnelIcon,
+  AcademicCapIcon,
+  StarIcon
+} from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
+import Select from '../components/common/Select';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { useApi } from '../hooks/useApi';
+import { teachersAPI } from '../services/api';
 
 const Teachers = () => {
-  const [teachers, setTeachers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [specialtyFilter, setSpecialtyFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
-  useEffect(() => {
-    const loadTeachers = async () => {
-      setLoading(true);
-      
-      setTimeout(() => {
-        setTeachers([
-          {
-            id: 1,
-            name: 'Elena Martínez',
-            email: 'elena.martinez@novadance.com',
-            phone: '+56 9 1111 2222',
-            avatar: null,
-            isOwner: true,
-            specialties: ['Ballet Clásico', 'Contemporáneo'],
-            assignedClasses: [
-              { name: 'Ballet Clásico Avanzado', students: 15, schedule: 'Lun/Mié 18:00' },
-              { name: 'Contemporáneo', students: 12, schedule: 'Mar/Jue 19:30' }
-            ],
-            monthlyCompensation: 450000,
-            compensationRate: 100
-          },
-          {
-            id: 2,
-            name: 'Carmen López',
-            email: 'carmen.lopez@novadance.com',
-            phone: '+56 9 3333 4444',
-            avatar: null,
-            isOwner: false,
-            specialties: ['Jazz', 'Hip Hop'],
-            assignedClasses: [
-              { name: 'Jazz Intermedio', students: 18, schedule: 'Mar/Jue 20:00' },
-              { name: 'Hip Hop Principiantes', students: 20, schedule: 'Vie 19:00' }
-            ],
-            monthlyCompensation: 285000,
-            compensationRate: 50
-          },
-          {
-            id: 3,
-            name: 'Ana Rodríguez',
-            email: 'ana.rodriguez@novadance.com',
-            phone: '+56 9 5555 6666',
-            avatar: null,
-            isOwner: false,
-            specialties: ['Salsa', 'Bachata'],
-            assignedClasses: [
-              { name: 'Salsa Avanzada', students: 16, schedule: 'Sáb 15:00' },
-              { name: 'Bachata', students: 14, schedule: 'Sáb 16:30' }
-            ],
-            monthlyCompensation: 225000,
-            compensationRate: 50
-          }
-        ]);
-        setLoading(false);
-      }, 1000);
-    };
-
-    loadTeachers();
-  }, []);
-
-  const filteredTeachers = teachers.filter(teacher =>
-    teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    teacher.specialties.some(specialty => 
-      specialty.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+  const {
+    data: teachers,
+    loading,
+    error,
+    refetch
+  } = useApi(
+    () => teachersAPI.getAll({
+      search: searchTerm,
+      specialty: specialtyFilter,
+      status: statusFilter
+    }),
+    [searchTerm, specialtyFilter, statusFilter]
   );
+
+  const getOwnerBadge = (isOwner) => {
+    return isOwner 
+      ? <Badge variant="primary" icon={StarIcon}>Propietario</Badge>
+      : <Badge variant="secondary">Instructor</Badge>;
+  };
+
+  const getCompensationRate = (rate) => {
+    return rate === 100 ? '100%' : '50%';
+  };
+
+  // Filtrar profesores localmente si hay datos
+  const filteredTeachers = teachers ? teachers.filter(teacher => {
+    const matchesSearch = !searchTerm || 
+      teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      teacher.email.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesSpecialty = !specialtyFilter || 
+      (teacher.specialties && teacher.specialties.some(specialty => 
+        specialty.toLowerCase().includes(specialtyFilter.toLowerCase())
+      ));
+    
+    const matchesStatus = !statusFilter || 
+      (statusFilter === 'owner' && teacher.isOwner) ||
+      (statusFilter === 'instructor' && !teacher.isOwner);
+    
+    return matchesSearch && matchesSpecialty && matchesStatus;
+  }) : [];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center min-h-96">
         <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <AcademicCapIcon className="mx-auto h-12 w-12 text-red-500 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Error al cargar profesores</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <Button onClick={refetch} variant="primary">
+          Reintentar
+        </Button>
       </div>
     );
   }
@@ -92,24 +90,60 @@ const Teachers = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Profesoras</h1>
-          <p className="text-gray-600">Gestiona el equipo de profesoras del estudio</p>
+          <h1 className="text-2xl font-bold text-gray-900">Profesores</h1>
+          <p className="text-gray-600">Gestión del equipo docente</p>
         </div>
         <Button as={Link} to="/teachers/new" icon={PlusIcon}>
-          Nueva Profesora
+          Nuevo Profesor
         </Button>
       </div>
 
-      {/* Search */}
+      {/* Filters */}
       <Card className="p-6">
-        <div className="relative max-w-md">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Input
-            placeholder="Buscar profesoras o especialidades..."
+            placeholder="Buscar por nombre o email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            icon={MagnifyingGlassIcon}
           />
+          
+          <Select
+            placeholder="Especialidad"
+            value={specialtyFilter}
+            onChange={(e) => setSpecialtyFilter(e.target.value)}
+            options={[
+              { value: '', label: 'Todas las especialidades' },
+              { value: 'Ballet', label: 'Ballet Clásico' },
+              { value: 'Jazz', label: 'Jazz' },
+              { value: 'Hip Hop', label: 'Hip Hop' },
+              { value: 'Contemporáneo', label: 'Contemporáneo' },
+              { value: 'Salsa', label: 'Salsa' }
+            ]}
+          />
+          
+          <Select
+            placeholder="Tipo"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={[
+              { value: '', label: 'Todos' },
+              { value: 'owner', label: 'Propietarios' },
+              { value: 'instructor', label: 'Instructores' }
+            ]}
+          />
+          
+          <Button
+            variant="secondary"
+            icon={FunnelIcon}
+            onClick={() => {
+              setSearchTerm('');
+              setSpecialtyFilter('');
+              setStatusFilter('');
+            }}
+          >
+            Limpiar Filtros
+          </Button>
         </div>
       </Card>
 
@@ -121,22 +155,23 @@ const Teachers = () => {
               <div className="flex items-center space-x-3">
                 <Avatar src={teacher.avatar} name={teacher.name} size="md" />
                 <div>
-                  <div className="flex items-center space-x-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{teacher.name}</h3>
-                    {teacher.isOwner && (
-                      <StarIcon className="h-4 w-4 text-yellow-500 fill-current" />
-                    )}
-                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">{teacher.name}</h3>
                   <p className="text-sm text-gray-600">{teacher.email}</p>
                 </div>
               </div>
+              {getOwnerBadge(teacher.isOwner)}
             </div>
 
             <div className="space-y-3 mb-4">
               <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Teléfono</p>
+                <p className="text-sm text-gray-900">{teacher.phone}</p>
+              </div>
+              
+              <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Especialidades</p>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {teacher.specialties.map((specialty, index) => (
+                  {teacher.specialties && teacher.specialties.map((specialty, index) => (
                     <Badge key={index} variant="primary" size="sm">{specialty}</Badge>
                   ))}
                 </div>
@@ -144,26 +179,44 @@ const Teachers = () => {
 
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Clases Asignadas</p>
-                <div className="mt-1 space-y-1">
-                  {teacher.assignedClasses.map((cls, index) => (
-                    <div key={index} className="text-sm">
-                      <span className="font-medium text-gray-900">{cls.name}</span>
-                      <span className="text-gray-500 ml-2">({cls.students} estudiantes)</span>
-                      <div className="text-xs text-gray-500">{cls.schedule}</div>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-sm text-gray-900 mt-1">
+                  {teacher.assignedClasses ? teacher.assignedClasses.length : 0} clases
+                </p>
+                {teacher.assignedClasses && teacher.assignedClasses.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {teacher.assignedClasses.slice(0, 2).map((classItem, index) => (
+                      <div key={index} className="text-xs text-gray-600">
+                        <span className="font-medium">{classItem.name}</span>
+                        <span className="ml-2">({classItem.students} estudiantes)</span>
+                      </div>
+                    ))}
+                    {teacher.assignedClasses.length > 2 && (
+                      <p className="text-xs text-gray-500">
+                        +{teacher.assignedClasses.length - 2} más
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Compensación Mensual</p>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-lg font-semibold text-gray-900">
-                    ${teacher.monthlyCompensation.toLocaleString()}
-                  </span>
-                  <Badge variant={teacher.isOwner ? 'success' : 'info'}>
-                    {teacher.compensationRate}%
-                  </Badge>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Compensación</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    ${teacher.monthlyCompensation?.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {getCompensationRate(teacher.compensationRate)} de ingresos
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Estudiantes</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {teacher.assignedClasses ? 
+                      teacher.assignedClasses.reduce((total, cls) => total + (cls.students || 0), 0) : 0
+                    }
+                  </p>
+                  <p className="text-xs text-gray-600">Total</p>
                 </div>
               </div>
             </div>
@@ -180,21 +233,48 @@ const Teachers = () => {
         ))}
       </div>
 
-      {filteredTeachers.length === 0 && (
+      {filteredTeachers.length === 0 && !loading && (
         <Card className="p-12 text-center">
           <div className="mx-auto h-12 w-12 text-gray-400">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-            </svg>
+            <AcademicCapIcon className="w-full h-full" />
           </div>
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No hay profesoras</h3>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No hay profesores</h3>
           <p className="mt-1 text-sm text-gray-500">
-            No se encontraron profesoras que coincidan con la búsqueda.
+            {searchTerm || specialtyFilter || statusFilter 
+              ? 'No se encontraron profesores que coincidan con los filtros aplicados.'
+              : 'No hay profesores registrados en el sistema.'
+            }
           </p>
           <div className="mt-6">
             <Button as={Link} to="/teachers/new" icon={PlusIcon}>
-              Agregar Profesora
+              Agregar Profesor
             </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Summary */}
+      {filteredTeachers.length > 0 && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>
+              Mostrando {filteredTeachers.length} de {teachers?.length || 0} profesores
+            </span>
+            <div className="flex space-x-4">
+              <span>
+                Propietarios: {filteredTeachers.filter(t => t.isOwner).length}
+              </span>
+              <span>
+                Instructores: {filteredTeachers.filter(t => !t.isOwner).length}
+              </span>
+              <span>
+                Total estudiantes: {filteredTeachers.reduce((total, teacher) => 
+                  total + (teacher.assignedClasses ? 
+                    teacher.assignedClasses.reduce((sum, cls) => sum + (cls.students || 0), 0) : 0
+                  ), 0
+                )}
+              </span>
+            </div>
           </div>
         </Card>
       )}

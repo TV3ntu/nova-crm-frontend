@@ -8,7 +8,7 @@ import LoadingSpinner from '../components/common/LoadingSpinner';
 
 const Login = () => {
   const [formData, setFormData] = useState({
-    email: '',
+    username: '',
     password: ''
   });
   const [loading, setLoading] = useState(false);
@@ -39,10 +39,10 @@ const Login = () => {
   const validateForm = () => {
     const newErrors = {};
     
-    if (!formData.email) {
-      newErrors.email = 'El email es requerido';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'El email no es válido';
+    if (!formData.username) {
+      newErrors.username = 'El nombre de usuario es requerido';
+    } else if (formData.username.length < 3) {
+      newErrors.username = 'El nombre de usuario debe tener al menos 3 caracteres';
     }
     
     if (!formData.password) {
@@ -61,7 +61,7 @@ const Login = () => {
     setLoading(true);
     
     try {
-      const result = await login(formData.email, formData.password);
+      const result = await login(formData.username, formData.password);
       
       if (!result.success) {
         showError(result.error);
@@ -91,14 +91,15 @@ const Login = () => {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <Input
-              label="Email"
-              name="email"
-              type="email"
-              value={formData.email}
+              label="Nombre de Usuario"
+              name="username"
+              type="text"
+              value={formData.username}
               onChange={handleChange}
-              error={errors.email}
+              error={errors.username}
               required
-              placeholder="tu@email.com"
+              placeholder="usuario"
+              autoComplete="username"
             />
             
             <Input
@@ -110,6 +111,7 @@ const Login = () => {
               error={errors.password}
               required
               placeholder="••••••••"
+              autoComplete="current-password"
             />
           </div>
 

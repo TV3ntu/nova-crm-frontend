@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authAPI } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -13,77 +14,87 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('nova_crm_token'));
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Check if user is authenticated on app load (mock version)
+  // Verificar si hay un token guardado al cargar la aplicación
   useEffect(() => {
-    const checkAuth = () => {
+    const initializeAuth = async () => {
+      const token = localStorage.getItem('nova_crm_token');
+      
       if (token) {
-        // Mock user data
-        setUser({
-          id: 1,
-          name: 'Admin NOVA',
-          email: 'admin@novadance.com',
-          role: 'admin',
-          avatar: null
-        });
+        try {
+          // Intentar obtener información del usuario actual
+          const response = await authAPI.getCurrentUser();
+          setUser(response.data);
+          setIsAuthenticated(true);
+        } catch (error) {
+          console.error('Error al verificar autenticación:', error);
+          // Si hay error, limpiar token inválido
+          localStorage.removeItem('nova_crm_token');
+          setUser(null);
+          setIsAuthenticated(false);
+        }
       }
+      
       setLoading(false);
     };
 
-    // Simulate a small delay to show loading state
-    setTimeout(checkAuth, 500);
-  }, [token]);
+    initializeAuth();
+  }, []);
 
-  const login = async (email, password) => {
+  const login = async (username, password) => {
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      setLoading(true);
       
-      // Mock successful login for any credentials
-      if (email && password) {
-        const mockToken = 'mock_jwt_token_' + Date.now();
-        const mockUser = {
-          id: 1,
-          name: 'Admin NOVA',
-          email: email,
-          role: 'admin',
-          avatar: null
-        };
-        
-        localStorage.setItem('nova_crm_token', mockToken);
-        setToken(mockToken);
-        setUser(mockUser);
-        
-        return { success: true };
-      } else {
-        return { 
-          success: false, 
-          error: 'Email y contraseña son requeridos' 
-        };
-      }
+      const response = await authAPI.login({ username, password });
+      const { token, user: userData } = response.data;
+      
+      // Guardar token en localStorage
+      localStorage.setItem('nova_crm_token', token);
+      
+      // Actualizar estado
+      setUser(userData);
+      setIsAuthenticated(true);
+      
+      return { success: true, user: userData };
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Error en login:', error);
+      
+      // Limpiar estado en caso de error
+      localStorage.removeItem('nova_crm_token');
+      setUser(null);
+      setIsAuthenticated(false);
+      
       return { 
         success: false, 
-        error: 'Error de inicio de sesión' 
+        error: error.response?.data?.message || 'Error de autenticación' 
       };
+    } finally {
+      setLoading(false);
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('nova_crm_token');
-    setToken(null);
-    setUser(null);
+  const logout = async () => {
+    try {
+      // Intentar hacer logout en el servidor
+      await authAPI.logout();
+    } catch (error) {
+      console.error('Error en logout:', error);
+      // Continuar con logout local aunque falle el servidor
+    } finally {
+      // Limpiar estado local
+      localStorage.removeItem('nova_crm_token');
+      setUser(null);
+      setIsAuthenticated(false);
+    }
   };
 
   const value = {
     user,
-    token,
-    login,
-    logout,
+    isAuthenticated,
     loading,
-    isAuthenticated: !!user
+    login,
+    logout
   };
 
   return (

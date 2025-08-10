@@ -1,6 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusIcon, MagnifyingGlassIcon, FunnelIcon, BoltIcon } from '@heroicons/react/24/outline';
+import { 
+  PlusIcon, 
+  CurrencyDollarIcon, 
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  FunnelIcon,
+  MagnifyingGlassIcon,
+  CalendarDaysIcon
+} from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
@@ -8,150 +17,111 @@ import Select from '../components/common/Select';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { useApi } from '../hooks/useApi';
+import { paymentsAPI } from '../services/api';
 
 const Payments = () => {
-  const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
+  const [studentFilter, setStudentFilter] = useState('');
 
-  useEffect(() => {
-    const loadPayments = async () => {
-      setLoading(true);
-      
-      setTimeout(() => {
-        setPayments([
-          {
-            id: 1,
-            student: {
-              id: 1,
-              name: 'María García',
-              avatar: null
-            },
-            amount: 1500,
-            baseAmount: 1500,
-            lateFeePenalty: 0,
-            classes: ['Ballet Clásico', 'Jazz'],
-            paymentDate: '2024-01-15',
-            dueDate: '2024-01-10',
-            month: '2024-01',
-            status: 'completed',
-            method: 'Transferencia',
-            hasLateFee: false
-          },
-          {
-            id: 2,
-            student: {
-              id: 2,
-              name: 'Ana López',
-              avatar: null
-            },
-            amount: 920,
-            baseAmount: 800,
-            lateFeePenalty: 120,
-            classes: ['Hip Hop'],
-            paymentDate: '2024-01-18',
-            dueDate: '2024-01-10',
-            month: '2024-01',
-            status: 'completed',
-            method: 'Efectivo',
-            hasLateFee: true
-          },
-          {
-            id: 3,
-            student: {
-              id: 3,
-              name: 'Carmen Silva',
-              avatar: null
-            },
-            amount: 1600,
-            baseAmount: 1600,
-            lateFeePenalty: 0,
-            classes: ['Contemporáneo', 'Ballet Clásico'],
-            paymentDate: '2024-01-08',
-            dueDate: '2024-01-10',
-            month: '2024-01',
-            status: 'completed',
-            method: 'Transferencia',
-            hasLateFee: false
-          },
-          {
-            id: 4,
-            student: {
-              id: 4,
-              name: 'Isabella Rodríguez',
-              avatar: null
-            },
-            amount: 600,
-            baseAmount: 600,
-            lateFeePenalty: 0,
-            classes: ['Salsa'],
-            paymentDate: null,
-            dueDate: '2024-02-10',
-            month: '2024-02',
-            status: 'pending',
-            method: null,
-            hasLateFee: false
-          },
-          {
-            id: 5,
-            student: {
-              id: 5,
-              name: 'Sofía Martín',
-              avatar: null
-            },
-            amount: 920,
-            baseAmount: 800,
-            lateFeePenalty: 120,
-            classes: ['Jazz'],
-            paymentDate: null,
-            dueDate: '2024-01-10',
-            month: '2024-01',
-            status: 'overdue',
-            method: null,
-            hasLateFee: true
-          }
-        ]);
-        setLoading(false);
-      }, 1000);
-    };
-
-    loadPayments();
-  }, []);
+  const {
+    data: payments,
+    loading,
+    error,
+    refetch
+  } = useApi(
+    () => paymentsAPI.getAll({
+      search: searchTerm,
+      status: statusFilter,
+      month: monthFilter,
+      student: studentFilter
+    }),
+    [searchTerm, statusFilter, monthFilter, studentFilter]
+  );
 
   const getStatusBadge = (status) => {
     switch (status) {
-      case 'completed':
-        return <Badge variant="success">Completado</Badge>;
+      case 'paid':
+        return <Badge variant="success" icon={CheckCircleIcon}>Pagado</Badge>;
       case 'pending':
-        return <Badge variant="warning">Pendiente</Badge>;
+        return <Badge variant="warning" icon={ClockIcon}>Pendiente</Badge>;
       case 'overdue':
-        return <Badge variant="danger">Vencido</Badge>;
+        return <Badge variant="danger" icon={ExclamationTriangleIcon}>Vencido</Badge>;
+      case 'cancelled':
+        return <Badge variant="secondary">Cancelado</Badge>;
       default:
-        return <Badge variant="gray">Desconocido</Badge>;
+        return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
-  const filteredPayments = payments.filter(payment => {
-    const matchesSearch = payment.student.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !statusFilter || payment.status === statusFilter;
-    const matchesMonth = !monthFilter || payment.month === monthFilter;
-    
-    return matchesSearch && matchesStatus && matchesMonth;
-  });
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('es-CL', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
 
-  const totalAmount = filteredPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const completedPayments = filteredPayments.filter(p => p.status === 'completed');
-  const pendingPayments = filteredPayments.filter(p => p.status === 'pending' || p.status === 'overdue');
+  const calculateLateFee = (baseAmount, daysOverdue) => {
+    if (daysOverdue <= 10) return 0;
+    return Math.round(baseAmount * 0.15); // 15% recargo después del día 10
+  };
+
+  const getDaysOverdue = (dueDate) => {
+    const today = new Date();
+    const due = new Date(dueDate);
+    const diffTime = today - due;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+  };
+
+  // Filtrar pagos localmente si hay datos
+  const filteredPayments = payments ? payments.filter(payment => {
+    const matchesSearch = !searchTerm || 
+      payment.student?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.student?.email.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = !statusFilter || payment.status === statusFilter;
+    
+    const matchesMonth = !monthFilter || 
+      new Date(payment.dueDate).getMonth() === parseInt(monthFilter);
+    
+    const matchesStudent = !studentFilter || payment.student?.id === parseInt(studentFilter);
+    
+    return matchesSearch && matchesStatus && matchesMonth && matchesStudent;
+  }) : [];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center min-h-96">
         <LoadingSpinner size="lg" />
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <CurrencyDollarIcon className="mx-auto h-12 w-12 text-red-500 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Error al cargar pagos</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <Button onClick={refetch} variant="primary">
+          Reintentar
+        </Button>
+      </div>
+    );
+  }
+
+  // Calcular estadísticas
+  const stats = filteredPayments.reduce((acc, payment) => {
+    acc.total += payment.amount || 0;
+    if (payment.status === 'paid') acc.paid += payment.amount || 0;
+    if (payment.status === 'pending') acc.pending += payment.amount || 0;
+    if (payment.status === 'overdue') acc.overdue += payment.amount || 0;
+    return acc;
+  }, { total: 0, paid: 0, pending: 0, overdue: 0 });
 
   return (
     <div className="space-y-6">
@@ -159,11 +129,11 @@ const Payments = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Pagos</h1>
-          <p className="text-gray-600">Gestiona los pagos de los estudiantes</p>
+          <p className="text-gray-600">Gestión de pagos y facturación</p>
         </div>
         <div className="flex space-x-3">
-          <Button as={Link} to="/payments/quick" variant="secondary" icon={BoltIcon}>
-            Pago Rápido
+          <Button as={Link} to="/payments/outstanding" variant="secondary" icon={ExclamationTriangleIcon}>
+            Pagos Pendientes
           </Button>
           <Button as={Link} to="/payments/new" icon={PlusIcon}>
             Nuevo Pago
@@ -171,32 +141,28 @@ const Payments = () => {
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="p-6">
           <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-              </svg>
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <CurrencyDollarIcon className="h-6 w-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Recaudado</p>
-              <p className="text-2xl font-bold text-gray-900">${totalAmount.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-600">Total</p>
+              <p className="text-2xl font-bold text-gray-900">${stats.total.toLocaleString()}</p>
             </div>
           </div>
         </Card>
 
         <Card className="p-6">
           <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <svg className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <div className="p-2 bg-green-100 rounded-lg">
+              <CheckCircleIcon className="h-6 w-6 text-green-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pagos Completados</p>
-              <p className="text-2xl font-bold text-gray-900">{completedPayments.length}</p>
+              <p className="text-sm font-medium text-gray-600">Pagado</p>
+              <p className="text-2xl font-bold text-gray-900">${stats.paid.toLocaleString()}</p>
             </div>
           </div>
         </Card>
@@ -204,13 +170,11 @@ const Payments = () => {
         <Card className="p-6">
           <div className="flex items-center">
             <div className="p-2 bg-yellow-100 rounded-lg">
-              <svg className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <ClockIcon className="h-6 w-6 text-yellow-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pagos Pendientes</p>
-              <p className="text-2xl font-bold text-gray-900">{pendingPayments.length}</p>
+              <p className="text-sm font-medium text-gray-600">Pendiente</p>
+              <p className="text-2xl font-bold text-gray-900">${stats.pending.toLocaleString()}</p>
             </div>
           </div>
         </Card>
@@ -218,15 +182,11 @@ const Payments = () => {
         <Card className="p-6">
           <div className="flex items-center">
             <div className="p-2 bg-red-100 rounded-lg">
-              <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
+              <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Con Recargo</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {filteredPayments.filter(p => p.hasLateFee).length}
-              </p>
+              <p className="text-sm font-medium text-gray-600">Vencido</p>
+              <p className="text-2xl font-bold text-gray-900">${stats.overdue.toLocaleString()}</p>
             </div>
           </div>
         </Card>
@@ -235,24 +195,23 @@ const Payments = () => {
       {/* Filters */}
       <Card className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Buscar estudiante..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+          <Input
+            placeholder="Buscar por estudiante..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            icon={MagnifyingGlassIcon}
+          />
           
           <Select
             placeholder="Estado"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             options={[
-              { value: 'completed', label: 'Completado' },
+              { value: '', label: 'Todos los estados' },
+              { value: 'paid', label: 'Pagado' },
               { value: 'pending', label: 'Pendiente' },
-              { value: 'overdue', label: 'Vencido' }
+              { value: 'overdue', label: 'Vencido' },
+              { value: 'cancelled', label: 'Cancelado' }
             ]}
           />
           
@@ -261,9 +220,29 @@ const Payments = () => {
             value={monthFilter}
             onChange={(e) => setMonthFilter(e.target.value)}
             options={[
-              { value: '2024-01', label: 'Enero 2024' },
-              { value: '2024-02', label: 'Febrero 2024' },
-              { value: '2024-03', label: 'Marzo 2024' }
+              { value: '', label: 'Todos los meses' },
+              { value: '0', label: 'Enero' },
+              { value: '1', label: 'Febrero' },
+              { value: '2', label: 'Marzo' },
+              { value: '3', label: 'Abril' },
+              { value: '4', label: 'Mayo' },
+              { value: '5', label: 'Junio' },
+              { value: '6', label: 'Julio' },
+              { value: '7', label: 'Agosto' },
+              { value: '8', label: 'Septiembre' },
+              { value: '9', label: 'Octubre' },
+              { value: '10', label: 'Noviembre' },
+              { value: '11', label: 'Diciembre' }
+            ]}
+          />
+          
+          <Select
+            placeholder="Estudiante"
+            value={studentFilter}
+            onChange={(e) => setStudentFilter(e.target.value)}
+            options={[
+              { value: '', label: 'Todos los estudiantes' },
+              // Aquí se cargarían los estudiantes desde la API
             ]}
           />
           
@@ -274,129 +253,171 @@ const Payments = () => {
               setSearchTerm('');
               setStatusFilter('');
               setMonthFilter('');
+              setStudentFilter('');
             }}
           >
-            Limpiar
-          </Button>
-
-          <Button as={Link} to="/reports/outstanding" variant="ghost">
-            Ver Pagos Vencidos
+            Limpiar Filtros
           </Button>
         </div>
       </Card>
 
-      {/* Payments Table */}
-      <Card className="p-6">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estudiante
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Clases
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Fecha Vencimiento
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Fecha Pago
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Monto
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Método
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredPayments.map((payment) => (
-                <tr key={payment.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <Avatar src={payment.student.avatar} name={payment.student.name} size="sm" />
-                      <div className="ml-3">
-                        <div className="text-sm font-medium text-gray-900">{payment.student.name}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {payment.classes.map((cls, index) => (
-                        <Badge key={index} variant="primary" size="sm">{cls}</Badge>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {new Date(payment.dueDate).toLocaleDateString('es-CL')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString('es-CL') : '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-semibold text-gray-900">
-                      ${payment.amount.toLocaleString()}
-                    </div>
-                    {payment.hasLateFee && (
-                      <div className="text-xs text-red-600">
-                        +${payment.lateFeePenalty} recargo
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(payment.status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                    {payment.method || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    {payment.status !== 'completed' && (
-                      <Button 
-                        as={Link} 
-                        to={`/payments/new?student=${payment.student.id}`}
-                        variant="ghost" 
-                        size="sm"
-                      >
-                        Procesar
-                      </Button>
-                    )}
-                    <Button as={Link} to={`/students/${payment.student.id}`} variant="ghost" size="sm">
-                      Ver Estudiante
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Payments List */}
+      <Card className="overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">Lista de Pagos</h3>
         </div>
         
-        {filteredPayments.length === 0 && (
-          <div className="text-center py-12">
+        {filteredPayments.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Estudiante
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Concepto
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Monto
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Vencimiento
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Estado
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredPayments.map((payment) => {
+                  const daysOverdue = getDaysOverdue(payment.dueDate);
+                  const lateFee = calculateLateFee(payment.baseAmount || payment.amount, daysOverdue);
+                  const totalAmount = (payment.baseAmount || payment.amount) + lateFee;
+                  
+                  return (
+                    <tr key={payment.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <Avatar 
+                            src={payment.student?.avatar} 
+                            name={payment.student?.name} 
+                            size="sm" 
+                          />
+                          <div className="ml-3">
+                            <div className="text-sm font-medium text-gray-900">
+                              {payment.student?.name}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {payment.student?.email}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{payment.description}</div>
+                        {payment.classes && payment.classes.length > 0 && (
+                          <div className="text-sm text-gray-500">
+                            {payment.classes.join(', ')}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          ${totalAmount.toLocaleString()}
+                        </div>
+                        {lateFee > 0 && (
+                          <div className="text-xs text-red-600">
+                            +${lateFee.toLocaleString()} recargo
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {formatDate(payment.dueDate)}
+                        </div>
+                        {daysOverdue > 0 && (
+                          <div className="text-xs text-red-600">
+                            {daysOverdue} días vencido
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getStatusBadge(payment.status)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-2">
+                          <Button 
+                            as={Link} 
+                            to={`/payments/${payment.id}`} 
+                            variant="ghost" 
+                            size="sm"
+                          >
+                            Ver
+                          </Button>
+                          {payment.status !== 'paid' && (
+                            <Button 
+                              as={Link} 
+                              to={`/payments/${payment.id}/pay`} 
+                              variant="primary" 
+                              size="sm"
+                            >
+                              Pagar
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-12 text-center">
             <div className="mx-auto h-12 w-12 text-gray-400">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-              </svg>
+              <CurrencyDollarIcon className="w-full h-full" />
             </div>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No hay pagos</h3>
             <p className="mt-1 text-sm text-gray-500">
-              No se encontraron pagos que coincidan con los filtros aplicados.
+              {searchTerm || statusFilter || monthFilter || studentFilter
+                ? 'No se encontraron pagos que coincidan con los filtros aplicados.'
+                : 'No hay pagos registrados en el sistema.'
+              }
             </p>
             <div className="mt-6">
               <Button as={Link} to="/payments/new" icon={PlusIcon}>
-                Procesar Primer Pago
+                Registrar Primer Pago
               </Button>
             </div>
           </div>
         )}
       </Card>
+
+      {/* Summary */}
+      {filteredPayments.length > 0 && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>
+              Mostrando {filteredPayments.length} de {payments?.length || 0} pagos
+            </span>
+            <div className="flex space-x-4">
+              <span>
+                Pagados: {filteredPayments.filter(p => p.status === 'paid').length}
+              </span>
+              <span>
+                Pendientes: {filteredPayments.filter(p => p.status === 'pending').length}
+              </span>
+              <span>
+                Vencidos: {filteredPayments.filter(p => p.status === 'overdue').length}
+              </span>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 };

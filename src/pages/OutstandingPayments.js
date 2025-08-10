@@ -1,131 +1,115 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ExclamationTriangleIcon, CreditCardIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
+import { 
+  ArrowLeftIcon,
+  ExclamationTriangleIcon,
+  CurrencyDollarIcon,
+  CalendarDaysIcon,
+  PhoneIcon,
+  EnvelopeIcon,
+  MagnifyingGlassIcon
+} from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
-import Avatar from '../components/common/Avatar';
+import Input from '../components/common/Input';
+import Select from '../components/common/Select';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { useApi } from '../hooks/useApi';
+import { paymentsAPI } from '../services/api';
 
 const OutstandingPayments = () => {
-  const [loading, setLoading] = useState(true);
-  const [outstandingPayments, setOutstandingPayments] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('daysOverdue');
 
-  useEffect(() => {
-    const loadOutstandingPayments = async () => {
-      setLoading(true);
-      
-      setTimeout(() => {
-        setOutstandingPayments([
-          {
-            id: 1,
-            student: {
-              id: 2,
-              name: 'Ana López',
-              email: 'ana.lopez@email.com',
-              phone: '+56 9 8765 4321',
-              avatar: null
-            },
-            classes: ['Hip Hop'],
-            baseAmount: 800,
-            lateFee: 120,
-            totalAmount: 920,
-            dueDate: '2024-01-10',
-            daysOverdue: 15,
-            lastReminder: '2024-01-20'
-          },
-          {
-            id: 2,
-            student: {
-              id: 5,
-              name: 'Sofía Martín',
-              email: 'sofia.martin@email.com',
-              phone: '+56 9 5555 7777',
-              avatar: null
-            },
-            classes: ['Jazz'],
-            baseAmount: 700,
-            lateFee: 105,
-            totalAmount: 805,
-            dueDate: '2024-01-10',
-            daysOverdue: 15,
-            lastReminder: null
-          },
-          {
-            id: 3,
-            student: {
-              id: 7,
-              name: 'Valentina Torres',
-              email: 'valentina.torres@email.com',
-              phone: '+56 9 9999 1111',
-              avatar: null
-            },
-            classes: ['Ballet Clásico', 'Contemporáneo'],
-            baseAmount: 1600,
-            lateFee: 240,
-            totalAmount: 1840,
-            dueDate: '2024-01-05',
-            daysOverdue: 20,
-            lastReminder: '2024-01-18'
-          },
-          {
-            id: 4,
-            student: {
-              id: 8,
-              name: 'Camila Herrera',
-              email: 'camila.herrera@email.com',
-              phone: '+56 9 3333 8888',
-              avatar: null
-            },
-            classes: ['Salsa'],
-            baseAmount: 600,
-            lateFee: 90,
-            totalAmount: 690,
-            dueDate: '2024-01-12',
-            daysOverdue: 13,
-            lastReminder: null
-          }
-        ]);
-        setLoading(false);
-      }, 1000);
-    };
-
-    loadOutstandingPayments();
-  }, []);
-
-  const totalOutstanding = outstandingPayments.reduce((sum, payment) => sum + payment.totalAmount, 0);
-  const totalLateFees = outstandingPayments.reduce((sum, payment) => sum + payment.lateFee, 0);
-
-  const getSeverityBadge = (daysOverdue) => {
-    if (daysOverdue >= 20) return <Badge variant="danger">Crítico</Badge>;
-    if (daysOverdue >= 10) return <Badge variant="warning">Urgente</Badge>;
-    return <Badge variant="info">Reciente</Badge>;
-  };
-
-  const handleSendReminder = async (studentId) => {
-    // Simular envío de recordatorio
-    console.log(`Enviando recordatorio a estudiante ${studentId}`);
-  };
+  const {
+    data: outstandingPayments,
+    loading,
+    error,
+    refetch
+  } = useApi(
+    () => paymentsAPI.getOutstanding(),
+    [],
+    {
+      transform: (data) => data || []
+    }
+  );
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center min-h-96">
         <LoadingSpinner size="lg" />
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-red-500 mb-4" />
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Error al cargar pagos pendientes</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <Button onClick={refetch} variant="primary">
+          Reintentar
+        </Button>
+      </div>
+    );
+  }
+
+  // Filter and sort payments
+  const filteredPayments = outstandingPayments
+    .filter(payment => {
+      const matchesSearch = payment.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           payment.className?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'daysOverdue':
+          return (b.daysOverdue || 0) - (a.daysOverdue || 0);
+        case 'amount':
+          return (b.amount || 0) - (a.amount || 0);
+        case 'studentName':
+          return (a.studentName || '').localeCompare(b.studentName || '');
+        default:
+          return 0;
+      }
+    });
+
+  const totalOutstanding = filteredPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+  const totalWithLateFees = filteredPayments.reduce((sum, payment) => {
+    const lateFee = (payment.daysOverdue || 0) > 10 ? (payment.amount || 0) * 0.15 : 0;
+    return sum + (payment.amount || 0) + lateFee;
+  }, 0);
+
+  const getStatusBadge = (status, daysOverdue) => {
+    if (daysOverdue > 30) return <Badge variant="danger">Crítico</Badge>;
+    if (daysOverdue > 10) return <Badge variant="warning">Recargo</Badge>;
+    return <Badge variant="info">Pendiente</Badge>;
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP'
+    }).format(amount || 0);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Pagos Pendientes</h1>
-          <p className="text-gray-600">Estudiantes con pagos vencidos y por vencer</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Button as={Link} to="/reports" variant="ghost" size="sm" icon={ArrowLeftIcon}>
+            Volver a Reportes
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Pagos Pendientes</h1>
+            <p className="text-gray-600">Gestión de pagos vencidos y recargos</p>
+          </div>
         </div>
-        <Button as={Link} to="/reports" variant="secondary">
-          Volver a Reportes
-        </Button>
       </div>
 
       {/* Summary Cards */}
@@ -137,7 +121,8 @@ const OutstandingPayments = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Pendiente</p>
-              <p className="text-2xl font-bold text-gray-900">${totalOutstanding.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalOutstanding)}</p>
+              <p className="text-sm text-red-600">{filteredPayments.length} pagos</p>
             </div>
           </div>
         </Card>
@@ -145,11 +130,14 @@ const OutstandingPayments = () => {
         <Card className="p-6">
           <div className="flex items-center">
             <div className="p-2 bg-yellow-100 rounded-lg">
-              <CreditCardIcon className="h-6 w-6 text-yellow-600" />
+              <CurrencyDollarIcon className="h-6 w-6 text-yellow-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Recargos por Mora</p>
-              <p className="text-2xl font-bold text-gray-900">${totalLateFees.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-600">Con Recargos</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalWithLateFees)}</p>
+              <p className="text-sm text-yellow-600">
+                +{formatCurrency(totalWithLateFees - totalOutstanding)} recargos
+              </p>
             </div>
           </div>
         </Card>
@@ -157,162 +145,208 @@ const OutstandingPayments = () => {
         <Card className="p-6">
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 rounded-lg">
-              <EnvelopeIcon className="h-6 w-6 text-blue-600" />
+              <CalendarDaysIcon className="h-6 w-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Estudiantes Afectados</p>
-              <p className="text-2xl font-bold text-gray-900">{outstandingPayments.length}</p>
+              <p className="text-sm font-medium text-gray-600">Promedio Días</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {filteredPayments.length > 0 
+                  ? Math.round(filteredPayments.reduce((sum, p) => sum + (p.daysOverdue || 0), 0) / filteredPayments.length)
+                  : 0
+                }
+              </p>
+              <p className="text-sm text-blue-600">días vencido</p>
             </div>
           </div>
         </Card>
       </div>
 
-      {/* Outstanding Payments List */}
+      {/* Filters */}
       <Card className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Lista de Pagos Vencidos</h2>
-          <div className="flex space-x-2">
-            <Button variant="secondary" size="sm">
-              Enviar Recordatorios Masivos
-            </Button>
-            <Button variant="secondary" size="sm">
-              Exportar Lista
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div>
+            <Input
+              type="text"
+              placeholder="Buscar estudiante o clase..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              icon={MagnifyingGlassIcon}
+            />
+          </div>
+          <div>
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              options={[
+                { value: 'all', label: 'Todos los estados' },
+                { value: 'pending', label: 'Pendiente' },
+                { value: 'overdue', label: 'Vencido' },
+                { value: 'critical', label: 'Crítico' }
+              ]}
+            />
+          </div>
+          <div>
+            <Select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              options={[
+                { value: 'daysOverdue', label: 'Días vencido' },
+                { value: 'amount', label: 'Monto' },
+                { value: 'studentName', label: 'Nombre estudiante' }
+              ]}
+            />
+          </div>
+          <div>
+            <Button onClick={refetch} variant="secondary" className="w-full">
+              Actualizar
             </Button>
           </div>
         </div>
+      </Card>
 
-        <div className="space-y-4">
-          {outstandingPayments.map((payment) => (
-            <div key={payment.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start space-x-4">
-                  <Avatar src={payment.student.avatar} name={payment.student.name} size="md" />
-                  
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{payment.student.name}</h3>
-                      {getSeverityBadge(payment.daysOverdue)}
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
-                      <div>
-                        <p><strong>Email:</strong> {payment.student.email}</p>
-                        <p><strong>Teléfono:</strong> {payment.student.phone}</p>
-                      </div>
-                      <div>
-                        <p><strong>Fecha Vencimiento:</strong> {new Date(payment.dueDate).toLocaleDateString('es-CL')}</p>
-                        <p><strong>Días de Retraso:</strong> {payment.daysOverdue} días</p>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-3">
-                      <p className="text-sm text-gray-600 mb-2"><strong>Clases:</strong></p>
-                      <div className="flex flex-wrap gap-1">
-                        {payment.classes.map((cls, index) => (
-                          <Badge key={index} variant="primary" size="sm">{cls}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <div className="mb-4">
-                    <p className="text-2xl font-bold text-red-600">${payment.totalAmount.toLocaleString()}</p>
-                    <p className="text-sm text-gray-600">
-                      Base: ${payment.baseAmount.toLocaleString()}
-                    </p>
-                    <p className="text-sm text-red-600">
-                      Recargo: +${payment.lateFee.toLocaleString()}
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Button 
-                      as={Link} 
-                      to={`/payments/new?student=${payment.student.id}`}
-                      size="sm" 
-                      className="w-full"
-                    >
-                      Procesar Pago
-                    </Button>
-                    
-                    <Button 
-                      variant="secondary" 
-                      size="sm" 
-                      className="w-full"
-                      onClick={() => handleSendReminder(payment.student.id)}
-                    >
-                      Enviar Recordatorio
-                    </Button>
-                    
-                    <Button 
-                      as={Link}
-                      to={`/students/${payment.student.id}`}
-                      variant="ghost" 
-                      size="sm" 
-                      className="w-full"
-                    >
-                      Ver Estudiante
-                    </Button>
-                  </div>
-                </div>
-              </div>
-              
-              {payment.lastReminder && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <p className="text-xs text-gray-500">
-                    Último recordatorio enviado: {new Date(payment.lastReminder).toLocaleDateString('es-CL')}
-                  </p>
-                </div>
-              )}
-            </div>
-          ))}
+      {/* Payments List */}
+      <Card className="overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Pagos Pendientes ({filteredPayments.length})
+          </h3>
         </div>
 
-        {outstandingPayments.length === 0 && (
+        {filteredPayments.length === 0 ? (
           <div className="text-center py-12">
-            <div className="mx-auto h-12 w-12 text-gray-400">
-              <ExclamationTriangleIcon />
-            </div>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No hay pagos pendientes</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              ¡Excelente! Todos los estudiantes están al día con sus pagos.
+            <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No hay pagos pendientes</h3>
+            <p className="text-gray-600">
+              {searchTerm || statusFilter !== 'all' 
+                ? 'No se encontraron pagos con los filtros aplicados'
+                : 'Todos los pagos están al día'
+              }
             </p>
-            <div className="mt-6">
-              <Button as={Link} to="/payments">
-                Ver Historial de Pagos
-              </Button>
-            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Estudiante
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Clase
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Monto
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Fecha Vencimiento
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Días Vencido
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Estado
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Contacto
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredPayments.map((payment) => {
+                  const lateFee = (payment.daysOverdue || 0) > 10 ? (payment.amount || 0) * 0.15 : 0;
+                  const totalAmount = (payment.amount || 0) + lateFee;
+
+                  return (
+                    <tr key={payment.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {payment.studentName || 'N/A'}
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            ID: {payment.studentId || 'N/A'}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {payment.className || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {formatCurrency(payment.amount)}
+                        </div>
+                        {lateFee > 0 && (
+                          <div className="text-sm text-red-600">
+                            +{formatCurrency(lateFee)} recargo
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {payment.dueDate ? new Date(payment.dueDate).toLocaleDateString('es-CL') : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`text-sm font-medium ${
+                          (payment.daysOverdue || 0) > 30 ? 'text-red-600' :
+                          (payment.daysOverdue || 0) > 10 ? 'text-yellow-600' :
+                          'text-blue-600'
+                        }`}>
+                          {payment.daysOverdue || 0} días
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getStatusBadge(payment.status, payment.daysOverdue)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex space-x-2">
+                          {payment.studentPhone && (
+                            <a
+                              href={`tel:${payment.studentPhone}`}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              <PhoneIcon className="h-4 w-4" />
+                            </a>
+                          )}
+                          {payment.studentEmail && (
+                            <a
+                              href={`mailto:${payment.studentEmail}`}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              <EnvelopeIcon className="h-4 w-4" />
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end space-x-2">
+                          <Button
+                            as={Link}
+                            to={`/payments/new?studentId=${payment.studentId}`}
+                            variant="primary"
+                            size="sm"
+                          >
+                            Registrar Pago
+                          </Button>
+                          <Button
+                            as={Link}
+                            to={`/students/${payment.studentId}`}
+                            variant="ghost"
+                            size="sm"
+                          >
+                            Ver Estudiante
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </Card>
-
-      {/* Action Summary */}
-      {outstandingPayments.length > 0 && (
-        <Card className="p-6 bg-red-50 border-red-200">
-          <div className="flex items-start space-x-3">
-            <ExclamationTriangleIcon className="h-6 w-6 text-red-600 mt-1" />
-            <div>
-              <h3 className="text-lg font-semibold text-red-900">Acciones Recomendadas</h3>
-              <ul className="mt-2 text-sm text-red-800 space-y-1">
-                <li>• Contactar a los estudiantes con más de 15 días de retraso</li>
-                <li>• Enviar recordatorios por email y WhatsApp</li>
-                <li>• Considerar planes de pago para montos altos</li>
-                <li>• Revisar políticas de mora si es necesario</li>
-              </ul>
-              <div className="mt-4 flex space-x-3">
-                <Button size="sm">
-                  Enviar Recordatorios Masivos
-                </Button>
-                <Button variant="secondary" size="sm">
-                  Generar Reporte PDF
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
     </div>
   );
 };
