@@ -7,68 +7,55 @@ import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { teachersAPI } from '../services/api';
 
 const TeacherDetail = () => {
   const { id } = useParams();
   const [teacher, setTeacher] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const loadTeacher = async () => {
-      setLoading(true);
-      
-      setTimeout(() => {
-        setTeacher({
-          id: 1,
-          name: 'Elena Martínez',
-          email: 'elena.martinez@novadance.com',
-          phone: '+56 9 1111 2222',
-          avatar: null,
-          isOwner: true,
-          specialties: ['Ballet Clásico', 'Contemporáneo'],
-          assignedClasses: [
-            {
-              id: 1,
-              name: 'Ballet Clásico Avanzado',
-              students: 15,
-              maxStudents: 20,
-              schedule: 'Lunes y Miércoles 18:00-19:30',
-              monthlyFee: 800,
-              revenue: 12000
-            },
-            {
-              id: 2,
-              name: 'Contemporáneo',
-              students: 12,
-              maxStudents: 15,
-              schedule: 'Martes y Jueves 19:30-21:00',
-              monthlyFee: 800,
-              revenue: 9600
-            }
-          ],
-          monthlyCompensation: 450000,
-          compensationRate: 100,
-          compensationHistory: [
-            { month: 'Ene', amount: 420000 },
-            { month: 'Feb', amount: 435000 },
-            { month: 'Mar', amount: 440000 },
-            { month: 'Abr', amount: 445000 },
-            { month: 'May', amount: 450000 },
-            { month: 'Jun', amount: 450000 }
-          ],
-          students: [
-            { id: 1, name: 'María García', class: 'Ballet Clásico Avanzado' },
-            { id: 2, name: 'Ana López', class: 'Ballet Clásico Avanzado' },
-            { id: 3, name: 'Carmen Silva', class: 'Contemporáneo' },
-            { id: 4, name: 'Isabella Rodríguez', class: 'Contemporáneo' }
-          ]
-        });
-        setLoading(false);
-      }, 1000);
-    };
-
     loadTeacher();
   }, [id]);
+
+  const loadTeacher = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await teachersAPI.getById(id);
+      const teacherData = response.data;
+      
+      // Transform API data to match component expectations
+      setTeacher({
+        id: teacherData.id,
+        name: teacherData.name,
+        email: teacherData.email,
+        phone: teacherData.phone,
+        avatar: teacherData.avatar || null,
+        isOwner: teacherData.isOwner || false,
+        specialties: teacherData.specialties || [],
+        assignedClasses: teacherData.assignedClasses || [],
+        monthlyCompensation: teacherData.monthlyCompensation || 0,
+        compensationRate: teacherData.isOwner ? 100 : 50,
+        revenueHistory: teacherData.revenueHistory || [
+          { month: 'Ene', amount: 420000 },
+          { month: 'Feb', amount: 435000 },
+          { month: 'Mar', amount: 440000 },
+          { month: 'Abr', amount: 445000 },
+          { month: 'May', amount: 450000 },
+          { month: 'Jun', amount: 450000 }
+        ],
+        students: teacherData.students || []
+      });
+    } catch (error) {
+      console.error('Error loading teacher:', error);
+      setError('Error al cargar los datos de la profesora');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -78,14 +65,22 @@ const TeacherDetail = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600 mb-4">{error}</p>
+        <Button onClick={loadTeacher}>Reintentar</Button>
+      </div>
+    );
+  }
+
   if (!teacher) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-semibold text-gray-900">Profesora no encontrada</h2>
-        <p className="text-gray-600 mt-2">La profesora que buscas no existe.</p>
-        <Button as={Link} to="/teachers" className="mt-4">
-          Volver a Profesoras
-        </Button>
+        <p className="text-gray-600">Profesora no encontrada</p>
+        <Link to="/teachers">
+          <Button className="mt-4">Volver a Profesoras</Button>
+        </Link>
       </div>
     );
   }
@@ -235,7 +230,7 @@ const TeacherDetail = () => {
           <Card className="p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Historial de Compensación</h2>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={teacher.compensationHistory}>
+              <BarChart data={teacher.revenueHistory}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />

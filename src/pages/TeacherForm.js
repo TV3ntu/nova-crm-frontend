@@ -5,6 +5,7 @@ import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { teachersAPI } from '../services/api';
 
 const TeacherForm = () => {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ const TeacherForm = () => {
   const isEditing = !!id;
 
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(isEditing);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -37,19 +39,31 @@ const TeacherForm = () => {
 
   useEffect(() => {
     if (isEditing) {
-      setLoading(true);
-      setTimeout(() => {
-        setFormData({
-          name: 'Elena Martínez',
-          email: 'elena.martinez@novadance.com',
-          phone: '+56 9 1111 2222',
-          isOwner: true,
-          selectedSpecialties: ['Ballet Clásico', 'Contemporáneo']
-        });
-        setLoading(false);
-      }, 1000);
+      loadTeacherData();
     }
-  }, [isEditing]);
+  }, [isEditing, id]);
+
+  const loadTeacherData = async () => {
+    setInitialLoading(true);
+    try {
+      const response = await teachersAPI.getById(id);
+      const teacher = response.data;
+      
+      setFormData({
+        name: teacher.name || '',
+        email: teacher.email || '',
+        phone: teacher.phone || '',
+        isOwner: teacher.isOwner || false,
+        selectedSpecialties: teacher.specialties || []
+      });
+    } catch (error) {
+      console.error('Error loading teacher:', error);
+      showError('Error al cargar los datos de la profesora');
+      navigate('/teachers');
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -108,23 +122,33 @@ const TeacherForm = () => {
     setLoading(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      showSuccess(
-        isEditing 
-          ? 'Profesora actualizada exitosamente' 
-          : 'Profesora creada exitosamente'
-      );
+      const teacherData = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        isOwner: formData.isOwner,
+        specialties: formData.selectedSpecialties
+      };
+
+      if (isEditing) {
+        await teachersAPI.update(id, teacherData);
+        showSuccess('Profesora actualizada exitosamente');
+      } else {
+        await teachersAPI.create(teacherData);
+        showSuccess('Profesora creada exitosamente');
+      }
       
       navigate('/teachers');
     } catch (error) {
-      showError('Error al guardar la profesora');
+      console.error('Error saving teacher:', error);
+      const errorMessage = error.response?.data?.message || 'Error al guardar la profesora';
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading && isEditing) {
+  if (initialLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />

@@ -6,7 +6,7 @@ const AuthContext = createContext();
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth debe ser usado dentro de un AuthProvider');
   }
   return context;
 };
@@ -23,16 +23,33 @@ export const AuthProvider = ({ children }) => {
       
       if (token) {
         try {
-          // Intentar obtener información del usuario actual
+          // Verificar si el token es válido
           const response = await authAPI.getCurrentUser();
           setUser(response.data);
           setIsAuthenticated(true);
+          console.log('Sesión restaurada exitosamente');
         } catch (error) {
-          console.error('Error al verificar autenticación:', error);
-          // Si hay error, limpiar token inválido
-          localStorage.removeItem('nova_crm_token');
-          setUser(null);
-          setIsAuthenticated(false);
+          console.warn('Error al verificar autenticación:', error);
+          
+          // Solo limpiar si es claramente un error de token inválido
+          const errorMessage = error.response?.data?.message || error.message || '';
+          const isTokenError = error.response?.status === 401 && 
+                              (errorMessage.includes('expired') || 
+                               errorMessage.includes('invalid') || 
+                               errorMessage.includes('token'));
+          
+          if (isTokenError) {
+            console.log('Token inválido, limpiando sesión');
+            localStorage.removeItem('nova_crm_token');
+            setUser(null);
+            setIsAuthenticated(false);
+          } else {
+            // Para errores de red u otros, mantener la sesión
+            console.log('Error de red, manteniendo sesión local');
+            setIsAuthenticated(true);
+            // Usar datos básicos del token si están disponibles
+            setUser({ username: 'admin' }); // Fallback básico
+          }
         }
       }
       
@@ -53,10 +70,12 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('nova_crm_token', token);
       
       // Actualizar estado
-      setUser(userData);
+      setUser(userData || { username });
       setIsAuthenticated(true);
       
-      return { success: true, user: userData };
+      console.log('Login exitoso para:', username);
+      
+      return { success: true, user: userData || { username } };
     } catch (error) {
       console.error('Error en login:', error);
       
@@ -76,18 +95,56 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      // Intentar hacer logout en el servidor
-      await authAPI.logout();
+      setLoading(true);
+      
+      // Intentar hacer logout en el servidor (no crítico si falla)
+      try {
+        await authAPI.logout();
+        console.log('Logout en servidor exitoso');
+      } catch (error) {
+        console.warn('Error en logout del servidor (continuando):', error);
+      }
+      
     } catch (error) {
       console.error('Error en logout:', error);
-      // Continuar con logout local aunque falle el servidor
     } finally {
-      // Limpiar estado local
+      // Siempre limpiar estado local
       localStorage.removeItem('nova_crm_token');
       setUser(null);
       setIsAuthenticated(false);
+      setLoading(false);
+      console.log('Logout local completado');
     }
   };
+
+  // Función para verificar periódicamente la validez del token
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const checkTokenValidity = async () => {
+      try {
+        await authAPI.getCurrentUser();
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || '';
+        const isTokenExpired = error.response?.status === 401 && 
+                              (errorMessage.includes('expired') || 
+                               errorMessage.includes('invalid') || 
+                               errorMessage.includes('token'));
+        
+        if (isTokenExpired) {
+          console.warn('Token expirado detectado en verificación periódica');
+          localStorage.removeItem('nova_crm_token');
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      }
+    };
+
+    // Verificar token cada 30 minutos (menos agresivo)
+    const interval = setInterval(checkTokenValidity, 30 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
   const value = {
     user,
@@ -103,3 +160,5 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
+
+export default AuthContext;

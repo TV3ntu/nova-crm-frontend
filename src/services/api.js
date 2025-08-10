@@ -12,6 +12,9 @@ const apiClient = axios.create({
   },
 });
 
+// Variable para evitar múltiples redirects simultáneos
+let isRedirecting = false;
+
 // Interceptor para agregar token de autenticación
 apiClient.interceptors.request.use(
   (config) => {
@@ -32,10 +35,38 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Manejar errores de autenticación
+    // Solo manejar errores de autenticación específicos
     if (error.response?.status === 401) {
-      localStorage.removeItem('nova_crm_token');
-      window.location.href = '/login';
+      const originalRequest = error.config;
+      
+      // Evitar loops infinitos y múltiples redirects
+      if (!originalRequest._retry && !isRedirecting) {
+        originalRequest._retry = true;
+        
+        // Verificar si es un error de token expirado vs credenciales inválidas
+        const errorMessage = error.response?.data?.message || '';
+        const isTokenExpired = errorMessage.includes('expired') || 
+                              errorMessage.includes('invalid') || 
+                              errorMessage.includes('token');
+        
+        // Solo hacer logout automático si es claramente un problema de token
+        if (isTokenExpired) {
+          console.warn('Token expirado o inválido, cerrando sesión...');
+          isRedirecting = true;
+          
+          // Limpiar token
+          localStorage.removeItem('nova_crm_token');
+          
+          // Redirigir después de un pequeño delay para evitar problemas de estado
+          setTimeout(() => {
+            isRedirecting = false;
+            window.location.href = '/login';
+          }, 100);
+        } else {
+          // Para otros errores 401, no hacer logout automático
+          console.warn('Error 401 sin logout automático:', errorMessage);
+        }
+      }
     }
     
     return Promise.reject(error);
@@ -54,8 +85,14 @@ export const authAPI = {
   },
   
   logout: async () => {
-    const response = await apiClient.post('/api/auth/logout');
-    return response;
+    try {
+      const response = await apiClient.post('/api/auth/logout');
+      return response;
+    } catch (error) {
+      // No lanzar error si el logout falla en el servidor
+      console.warn('Logout en servidor falló, continuando con logout local');
+      return { data: { message: 'Logout local exitoso' } };
+    }
   },
   
   getCurrentUser: async () => {
@@ -242,41 +279,53 @@ export const paymentsAPI = {
 // Servicio de Reportes
 export const reportsAPI = {
   getDashboard: async (period = 'month') => {
-    const response = await apiClient.get(`/api/reports/dashboard?period=${period}`);
+    const response = await apiClient.get('/api/dashboard');
     return response;
+  },
+
+  getDashboardRevenueChart: async () => {
+    const response = await apiClient.get('/api/dashboard/revenue-chart');
+    return response;
+  },
+
+  getDashboardClassDistribution: async () => {
+    const response = await apiClient.get('/api/dashboard/class-distribution');
+    return response;
+  },
+
+  getFinancial: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/reports/financial${queryString ? `?${queryString}` : ''}`);
   },
   
-  getFinancial: async (params = {}) => {
-    const response = await apiClient.get('/api/reports/financial', { params });
-    return response;
+  getTeacherCompensation: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/reports/teacher-compensation${queryString ? `?${queryString}` : ''}`);
   },
   
-  getTeacherCompensation: async (params = {}) => {
-    const response = await apiClient.get('/api/reports/teacher-compensation', { params });
-    return response;
+  getStudentAnalytics: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/reports/student-analytics${queryString ? `?${queryString}` : ''}`);
   },
-
-  getStudentAnalytics: async (params = {}) => {
-    const response = await apiClient.get('/api/reports/student-analytics', { params });
-    return response;
+  
+  getClassPerformance: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/reports/class-performance${queryString ? `?${queryString}` : ''}`);
   },
-
-  getClassPerformance: async (params = {}) => {
-    const response = await apiClient.get('/api/reports/class-performance', { params });
-    return response;
+  
+  getPaymentAnalytics: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/reports/payment-analytics${queryString ? `?${queryString}` : ''}`);
   },
-
-  getPaymentAnalytics: async (params = {}) => {
-    const response = await apiClient.get('/api/reports/payment-analytics', { params });
-    return response;
-  },
-
-  exportReport: async (reportType, params = {}) => {
-    const response = await apiClient.get(`/api/reports/export/${reportType}`, {
-      params,
+  
+  exportReport: (reportType, params = {}) => {
+    const queryString = new URLSearchParams({
+      ...params,
+      type: reportType
+    }).toString();
+    return apiClient.get(`/api/reports/export?${queryString}`, {
       responseType: 'blob'
     });
-    return response;
   }
 };
 
