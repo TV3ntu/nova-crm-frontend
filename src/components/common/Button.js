@@ -10,6 +10,7 @@ const Button = ({
   className = '',
   icon: Icon,
   iconPosition = 'left',
+  as: Component = 'button',
   ...props 
 }) => {
   const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
@@ -32,7 +33,7 @@ const Button = ({
   const classes = `${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`;
 
   return (
-    <button
+    <Component
       className={classes}
       disabled={disabled || loading}
       {...props}
@@ -53,7 +54,7 @@ const Button = ({
           )}
         </>
       )}
-    </button>
+    </Component>
   );
 };
 

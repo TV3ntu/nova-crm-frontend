@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
 
 const AuthContext = createContext();
 
@@ -14,63 +13,68 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY));
+  const [token, setToken] = useState(localStorage.getItem('nova_crm_token'));
 
-  // Configure axios defaults
+  // Check if user is authenticated on app load (mock version)
   useEffect(() => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
-    }
-  }, [token]);
-
-  // Check if user is authenticated on app load
-  useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuth = () => {
       if (token) {
-        try {
-          const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/auth/me`);
-          setUser(response.data.user);
-        } catch (error) {
-          console.error('Auth check failed:', error);
-          logout();
-        }
+        // Mock user data
+        setUser({
+          id: 1,
+          name: 'Admin NOVA',
+          email: 'admin@novadance.com',
+          role: 'admin',
+          avatar: null
+        });
       }
       setLoading(false);
     };
 
-    checkAuth();
+    // Simulate a small delay to show loading state
+    setTimeout(checkAuth, 500);
   }, [token]);
 
   const login = async (email, password) => {
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/auth/login`, {
-        email,
-        password
-      });
-
-      const { token: newToken, user: userData } = response.data;
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      localStorage.setItem(process.env.REACT_APP_JWT_STORAGE_KEY, newToken);
-      setToken(newToken);
-      setUser(userData);
-      
-      return { success: true };
+      // Mock successful login for any credentials
+      if (email && password) {
+        const mockToken = 'mock_jwt_token_' + Date.now();
+        const mockUser = {
+          id: 1,
+          name: 'Admin NOVA',
+          email: email,
+          role: 'admin',
+          avatar: null
+        };
+        
+        localStorage.setItem('nova_crm_token', mockToken);
+        setToken(mockToken);
+        setUser(mockUser);
+        
+        return { success: true };
+      } else {
+        return { 
+          success: false, 
+          error: 'Email y contraseña son requeridos' 
+        };
+      }
     } catch (error) {
       console.error('Login failed:', error);
       return { 
         success: false, 
-        error: error.response?.data?.message || 'Error de inicio de sesión' 
+        error: 'Error de inicio de sesión' 
       };
     }
   };
 
   const logout = () => {
-    localStorage.removeItem(process.env.REACT_APP_JWT_STORAGE_KEY);
+    localStorage.removeItem('nova_crm_token');
     setToken(null);
     setUser(null);
-    delete axios.defaults.headers.common['Authorization'];
   };
 
   const value = {

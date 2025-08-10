@@ -34,44 +34,163 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               
-              <Route path="/*" element={
+              {/* Protected Routes */}
+              <Route path="/dashboard" element={
                 <ProtectedRoute>
                   <Layout>
-                    <Routes>
-                      <Route path="/dashboard" element={<Dashboard />} />
-                      
-                      {/* Students Routes */}
-                      <Route path="/students" element={<Students />} />
-                      <Route path="/students/new" element={<StudentForm />} />
-                      <Route path="/students/:id" element={<StudentDetail />} />
-                      <Route path="/students/:id/edit" element={<StudentForm />} />
-                      
-                      {/* Teachers Routes */}
-                      <Route path="/teachers" element={<Teachers />} />
-                      <Route path="/teachers/new" element={<TeacherForm />} />
-                      <Route path="/teachers/:id" element={<TeacherDetail />} />
-                      <Route path="/teachers/:id/edit" element={<TeacherForm />} />
-                      
-                      {/* Classes Routes */}
-                      <Route path="/classes" element={<Classes />} />
-                      <Route path="/classes/new" element={<ClassForm />} />
-                      <Route path="/classes/:id" element={<ClassDetail />} />
-                      <Route path="/classes/:id/edit" element={<ClassForm />} />
-                      
-                      {/* Payments Routes */}
-                      <Route path="/payments" element={<Payments />} />
-                      <Route path="/payments/new" element={<PaymentForm />} />
-                      <Route path="/payments/quick" element={<QuickPayment />} />
-                      
-                      {/* Reports Routes */}
-                      <Route path="/reports" element={<Reports />} />
-                      <Route path="/reports/outstanding" element={<OutstandingPayments />} />
-                      <Route path="/reports/teacher-compensation" element={<TeacherCompensation />} />
-                      <Route path="/reports/financial" element={<FinancialReports />} />
-                      
-                      {/* Settings */}
-                      <Route path="/settings" element={<Settings />} />
-                    </Routes>
+                    <Dashboard />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              
+              {/* Students Routes */}
+              <Route path="/students" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Students />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/students/new" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <StudentForm />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/students/:id" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <StudentDetail />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/students/:id/edit" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <StudentForm />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              
+              {/* Teachers Routes */}
+              <Route path="/teachers" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Teachers />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/teachers/new" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <TeacherForm />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/teachers/:id" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <TeacherDetail />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/teachers/:id/edit" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <TeacherForm />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              
+              {/* Classes Routes */}
+              <Route path="/classes" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Classes />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/classes/new" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ClassForm />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/classes/:id" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ClassDetail />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/classes/:id/edit" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ClassForm />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              
+              {/* Payments Routes */}
+              <Route path="/payments" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Payments />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/payments/new" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <PaymentForm />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/payments/quick" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <QuickPayment />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              
+              {/* Reports Routes */}
+              <Route path="/reports" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Reports />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/reports/outstanding" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <OutstandingPayments />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/reports/teacher-compensation" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <TeacherCompensation />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/reports/financial" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <FinancialReports />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              
+              {/* Settings */}
+              <Route path="/settings" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Settings />
                   </Layout>
                 </ProtectedRoute>
               } />

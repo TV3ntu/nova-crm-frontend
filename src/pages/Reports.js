@@ -164,38 +164,44 @@ const Reports = () => {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer" as={Link} to="/reports/outstanding">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Pagos Pendientes</h3>
-              <p className="text-sm text-gray-600">Ver estudiantes con pagos vencidos</p>
-              <Badge variant="danger" className="mt-2">{summary.outstandingPayments} pendientes</Badge>
+        <Link to="/reports/outstanding" className="block">
+          <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Pagos Pendientes</h3>
+                <p className="text-sm text-gray-600">Ver estudiantes con pagos vencidos</p>
+                <Badge variant="danger" className="mt-2">{summary.outstandingPayments} pendientes</Badge>
+              </div>
+              <ExclamationTriangleIcon className="h-8 w-8 text-red-500" />
             </div>
-            <ExclamationTriangleIcon className="h-8 w-8 text-red-500" />
-          </div>
-        </Card>
+          </Card>
+        </Link>
 
-        <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer" as={Link} to="/reports/teacher-compensation">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Compensación Profesoras</h3>
-              <p className="text-sm text-gray-600">Análisis de compensaciones mensuales</p>
-              <Badge variant="info" className="mt-2">3 profesoras</Badge>
+        <Link to="/reports/teacher-compensation" className="block">
+          <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Compensación Profesoras</h3>
+                <p className="text-sm text-gray-600">Análisis de compensaciones mensuales</p>
+                <Badge variant="info" className="mt-2">3 profesoras</Badge>
+              </div>
+              <AcademicCapIcon className="h-8 w-8 text-purple-500" />
             </div>
-            <AcademicCapIcon className="h-8 w-8 text-purple-500" />
-          </div>
-        </Card>
+          </Card>
+        </Link>
 
-        <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer" as={Link} to="/reports/financial">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Reporte Financiero</h3>
-              <p className="text-sm text-gray-600">Análisis financiero detallado</p>
-              <Badge variant="success" className="mt-2">+12.5% crecimiento</Badge>
+        <Link to="/reports/financial" className="block">
+          <Card className="p-6 hover:shadow-md transition-shadow cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Reporte Financiero</h3>
+                <p className="text-sm text-gray-600">Análisis financiero detallado</p>
+                <Badge variant="success" className="mt-2">+12.5% crecimiento</Badge>
+              </div>
+              <CurrencyDollarIcon className="h-8 w-8 text-green-500" />
             </div>
-            <CurrencyDollarIcon className="h-8 w-8 text-green-500" />
-          </div>
-        </Card>
+          </Card>
+        </Link>
       </div>
 
       {/* Charts */}
@@ -209,7 +215,7 @@ const Reports = () => {
               <XAxis dataKey="month" />
               <YAxis />
               <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, 'Ingresos']} />
-              <Line type="monotone" dataKey="revenue" stroke="#ec4899" strokeWidth={3} />
+              <Line type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} />
               <Line type="monotone" dataKey="target" stroke="#94a3b8" strokeDasharray="5 5" />
             </LineChart>
           </ResponsiveContainer>
@@ -247,7 +253,7 @@ const Reports = () => {
               <XAxis dataKey="name" />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="students" fill="#ec4899" name="Estudiantes" />
+              <Bar dataKey="students" fill="#f59e0b" name="Estudiantes" />
               <Bar dataKey="capacity" fill="#a855f7" name="Capacidad %" />
             </BarChart>
           </ResponsiveContainer>

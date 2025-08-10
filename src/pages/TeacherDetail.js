@@ -240,7 +240,7 @@ const TeacherDetail = () => {
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, 'Compensación']} />
-                <Bar dataKey="amount" fill="#ec4899" />
+                <Bar dataKey="amount" fill="#f59e0b" />
               </BarChart>
             </ResponsiveContainer>
           </Card>

@@ -196,7 +196,7 @@ const Dashboard = () => {
               <XAxis dataKey="month" />
               <YAxis />
               <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, 'Ingresos']} />
-              <Bar dataKey="revenue" fill="#ec4899" />
+              <Bar dataKey="revenue" fill="#f59e0b" />
             </BarChart>
           </ResponsiveContainer>
         </Card>

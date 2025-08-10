@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { CurrencyDollarIcon, TrendingUpIcon, TrendingDownIcon } from '@heroicons/react/24/outline';
+import { CurrencyDollarIcon, ArrowTrendingUpIcon, ArrowTrendingDownIcon } from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Select from '../components/common/Select';
@@ -41,7 +41,7 @@ const FinancialReports = () => {
             { month: 'Dic', revenue: 490000, expenses: 245000, profit: 245000 }
           ],
           revenueByClass: [
-            { name: 'Ballet Clásico', revenue: 1680000, percentage: 30.7, color: '#ec4899' },
+            { name: 'Ballet Clásico', revenue: 1680000, percentage: 30.7, color: '#f59e0b' },
             { name: 'Jazz', revenue: 1314000, percentage: 24.0, color: '#a855f7' },
             { name: 'Hip Hop', revenue: 1095000, percentage: 20.0, color: '#3b82f6' },
             { name: 'Contemporáneo', revenue: 876000, percentage: 16.0, color: '#10b981' },
@@ -119,7 +119,7 @@ const FinancialReports = () => {
               <p className="text-sm font-medium text-gray-600">Ingresos Totales</p>
               <p className="text-2xl font-bold text-gray-900">${summary.totalRevenue.toLocaleString()}</p>
               <div className="flex items-center mt-1">
-                <TrendingUpIcon className="h-4 w-4 text-green-500 mr-1" />
+                <ArrowTrendingUpIcon className="h-4 w-4 text-green-500 mr-1" />
                 <span className="text-sm text-green-600">+{summary.yearlyGrowth}%</span>
               </div>
             </div>
@@ -137,7 +137,7 @@ const FinancialReports = () => {
               <p className="text-sm font-medium text-gray-600">Gastos Totales</p>
               <p className="text-2xl font-bold text-gray-900">${summary.totalExpenses.toLocaleString()}</p>
               <div className="flex items-center mt-1">
-                <TrendingUpIcon className="h-4 w-4 text-red-500 mr-1" />
+                <ArrowTrendingUpIcon className="h-4 w-4 text-red-500 mr-1" />
                 <span className="text-sm text-red-600">+15.2%</span>
               </div>
             </div>
@@ -155,7 +155,7 @@ const FinancialReports = () => {
               <p className="text-sm font-medium text-gray-600">Utilidad Neta</p>
               <p className="text-2xl font-bold text-gray-900">${summary.netProfit.toLocaleString()}</p>
               <div className="flex items-center mt-1">
-                <TrendingUpIcon className="h-4 w-4 text-green-500 mr-1" />
+                <ArrowTrendingUpIcon className="h-4 w-4 text-green-500 mr-1" />
                 <span className="text-sm text-green-600">+{summary.monthlyGrowth}%</span>
               </div>
             </div>
@@ -187,7 +187,7 @@ const FinancialReports = () => {
             <XAxis dataKey="month" />
             <YAxis />
             <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, '']} />
-            <Line type="monotone" dataKey="revenue" stroke="#ec4899" strokeWidth={3} name="Ingresos" />
+            <Line type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={3} name="Ingresos" />
             <Line type="monotone" dataKey="profit" stroke="#10b981" strokeWidth={3} name="Utilidad" />
             <Line type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" name="Gastos" />
           </LineChart>
