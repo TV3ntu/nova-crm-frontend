@@ -257,7 +257,10 @@ const Classes = () => {
                 <AcademicCapIcon className="h-4 w-4 text-gray-400" />
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    {classItem.teacher?.name || 'Sin asignar'}
+                    {classItem.teacherIds && classItem.teacherIds.length > 0 
+                      ? `${classItem.teacherIds.length} profesor${classItem.teacherIds.length > 1 ? 'es' : ''} asignado${classItem.teacherIds.length > 1 ? 's' : ''}`
+                      : classItem.teacher?.name || 'Sin asignar'
+                    }
                   </p>
                   <p className="text-xs text-gray-500">Profesor</p>
                 </div>

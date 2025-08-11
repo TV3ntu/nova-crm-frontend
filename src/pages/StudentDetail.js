@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { PencilIcon, CreditCardIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { PencilIcon, CreditCardIcon, CalendarDaysIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import ConfirmationDialog from '../components/common/ConfirmationDialog';
 import { studentsAPI } from '../services/api';
 
 const StudentDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [student, setStudent] = useState(null);
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadStudentData();
@@ -89,6 +93,20 @@ const StudentDetail = () => {
 
   const totalMonthlyFee = 0; // TODO: Calculate from class prices when available
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await studentsAPI.delete(id);
+      navigate('/students');
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      setError('Error al eliminar el estudiante');
+    } finally {
+      setDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -110,6 +128,9 @@ const StudentDetail = () => {
           </Button>
           <Button variant="primary" icon={CreditCardIcon}>
             Registrar Pago
+          </Button>
+          <Button variant="danger" icon={TrashIcon} onClick={() => setShowDeleteDialog(true)}>
+            Eliminar
           </Button>
         </div>
       </div>
@@ -210,6 +231,16 @@ const StudentDetail = () => {
           </Card>
         </div>
       </div>
+
+      <ConfirmationDialog
+        isOpen={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={handleDelete}
+        title="Eliminar Estudiante"
+        message={`¿Estás seguro de que quieres eliminar a ${student.name}? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+      />
     </div>
   );
 };

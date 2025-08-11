@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { PencilIcon, UserPlusIcon, UserMinusIcon } from '@heroicons/react/24/outline';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { PencilIcon, UserPlusIcon, UserMinusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import ConfirmationDialog from '../components/common/ConfirmationDialog';
 import TeacherAssignmentModal from '../components/modals/TeacherAssignmentModal';
 import StudentEnrollmentModal from '../components/modals/StudentEnrollmentModal';
 import { classesAPI, teachersAPI, studentsAPI } from '../services/api';
@@ -13,6 +14,7 @@ import { useNotification } from '../contexts/NotificationContext';
 
 const ClassDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [classData, setClassData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -20,6 +22,8 @@ const ClassDetail = () => {
   const [showTeacherAssignmentModal, setShowTeacherAssignmentModal] = useState(false);
   const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [showStudentEnrollmentModal, setShowStudentEnrollmentModal] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const { showSuccess, showError } = useNotification();
 
   useEffect(() => {
@@ -156,6 +160,21 @@ const ClassDetail = () => {
     }
   };
 
+  const handleDeleteClass = async () => {
+    setDeleting(true);
+    try {
+      await classesAPI.delete(id);
+      showSuccess('Clase eliminada exitosamente');
+      navigate('/classes');
+    } catch (error) {
+      console.error('Error deleting class:', error);
+      showError('Error al eliminar clase');
+    } finally {
+      setDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
   const getPaymentStatusBadge = (status) => {
     switch (status) {
       case 'overdue':
@@ -252,6 +271,9 @@ const ClassDetail = () => {
           </Button>
           <Button variant="secondary" icon={UserPlusIcon} onClick={() => setShowTeacherAssignmentModal(true)}>
             Asignar Profesora
+          </Button>
+          <Button variant="danger" icon={TrashIcon} onClick={() => setShowDeleteDialog(true)}>
+            Eliminar
           </Button>
         </div>
       </div>
@@ -476,6 +498,15 @@ const ClassDetail = () => {
         onClose={() => setShowStudentEnrollmentModal(false)}
         onEnroll={handleEnrollStudent}
         enrolledStudentIds={classData?.studentIds || []}
+      />
+      <ConfirmationDialog
+        isOpen={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={handleDeleteClass}
+        title="Eliminar Clase"
+        message={`¿Estás seguro de que quieres eliminar la clase "${classData.name}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
       />
     </div>
   );

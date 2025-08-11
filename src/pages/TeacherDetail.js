@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { PencilIcon, StarIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { PencilIcon, StarIcon, CalendarDaysIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import ConfirmationDialog from '../components/common/ConfirmationDialog';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { teachersAPI } from '../services/api';
 
 const TeacherDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [teacher, setTeacher] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadTeacher();
@@ -47,6 +51,20 @@ const TeacherDetail = () => {
       setError('Error al cargar los datos de la profesora');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await teachersAPI.delete(id);
+      navigate('/teachers');
+    } catch (error) {
+      console.error('Error deleting teacher:', error);
+      setError('Error al eliminar la profesora');
+    } finally {
+      setDeleting(false);
+      setShowDeleteDialog(false);
     }
   };
 
@@ -105,9 +123,14 @@ const TeacherDetail = () => {
           </div>
         </div>
         
-        <Button as={Link} to={`/teachers/${teacher.id}/edit`} variant="secondary" icon={PencilIcon}>
-          Editar
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button as={Link} to={`/teachers/${teacher.id}/edit`} variant="secondary" icon={PencilIcon}>
+            Editar
+          </Button>
+          <Button variant="danger" icon={TrashIcon} onClick={() => setShowDeleteDialog(true)}>
+            Eliminar
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -261,6 +284,17 @@ const TeacherDetail = () => {
           </Card>
         </div>
       </div>
+
+      <ConfirmationDialog
+        isOpen={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={handleDelete}
+        title="Eliminar Profesora"
+        message={`¿Estás seguro de que quieres eliminar a ${teacher.name}? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        loading={deleting}
+      />
     </div>
   );
 };
