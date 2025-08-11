@@ -49,9 +49,62 @@ const Classes = () => {
       case 'completed':
         return <Badge variant="secondary">Completada</Badge>;
       case 'scheduled':
-        return <Badge variant="primary">Programada</Badge>;
+        return <Badge variant="warning">Programada</Badge>;
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return <Badge variant="secondary">Sin estado</Badge>;
+    }
+  };
+
+  const formatDayOfWeek = (dayOfWeek) => {
+    const dayMap = {
+      'MONDAY': 'Lunes',
+      'TUESDAY': 'Martes',
+      'WEDNESDAY': 'Miércoles',
+      'THURSDAY': 'Jueves',
+      'FRIDAY': 'Viernes',
+      'SATURDAY': 'Sábado',
+      'SUNDAY': 'Domingo'
+    };
+    return dayMap[dayOfWeek] || dayOfWeek;
+  };
+
+  const formatTime = (hour, minute) => {
+    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  };
+
+  const calculateEndTime = (startHour, startMinute, durationHours) => {
+    const totalStartMinutes = startHour * 60 + startMinute;
+    const totalEndMinutes = totalStartMinutes + (durationHours * 60);
+    const endHour = Math.floor(totalEndMinutes / 60);
+    const endMinute = totalEndMinutes % 60;
+    return formatTime(endHour, endMinute);
+  };
+
+  const formatSchedules = (schedules, durationHours) => {
+    if (!schedules || schedules.length === 0) return 'Sin horario';
+    
+    if (schedules.length === 1) {
+      const schedule = schedules[0];
+      return `${formatDayOfWeek(schedule.dayOfWeek)} ${formatTime(schedule.startHour, schedule.startMinute)} - ${calculateEndTime(schedule.startHour, schedule.startMinute, durationHours)}`;
+    }
+    
+    return `${schedules.length} horarios`;
+  };
+
+  const getScheduleDays = (schedules) => {
+    if (!schedules || schedules.length === 0) return 'Sin programar';
+    
+    if (schedules.length === 1) {
+      return formatDayOfWeek(schedules[0].dayOfWeek);
+    }
+    
+    // Para múltiples horarios, mostrar todos los días
+    const days = schedules.map(schedule => formatDayOfWeek(schedule.dayOfWeek));
+    
+    if (days.length <= 2) {
+      return days.join(' y ');
+    } else {
+      return `${days.slice(0, 2).join(', ')} y ${days.length - 2} más`;
     }
   };
 
@@ -66,27 +119,6 @@ const Classes = () => {
     }
   };
 
-  const formatTime = (time) => {
-    return new Date(`2000-01-01T${time}`).toLocaleTimeString('es-CL', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
-  };
-
-  const formatDay = (day) => {
-    const days = {
-      'monday': 'Lunes',
-      'tuesday': 'Martes', 
-      'wednesday': 'Miércoles',
-      'thursday': 'Jueves',
-      'friday': 'Viernes',
-      'saturday': 'Sábado',
-      'sunday': 'Domingo'
-    };
-    return days[day] || day;
-  };
-
   // Filtrar clases localmente si hay datos
   const filteredClasses = classes ? classes.filter(classItem => {
     const matchesSearch = !searchTerm || 
@@ -95,7 +127,7 @@ const Classes = () => {
     
     const matchesType = !typeFilter || classItem.type === typeFilter;
     const matchesStatus = !statusFilter || classItem.status === statusFilter;
-    const matchesDay = !dayFilter || classItem.schedule?.day === dayFilter;
+    const matchesDay = !dayFilter || classItem.schedules?.some(schedule => formatDayOfWeek(schedule.dayOfWeek) === dayFilter);
     
     return matchesSearch && matchesType && matchesStatus && matchesDay;
   }) : [];
@@ -183,13 +215,13 @@ const Classes = () => {
             onChange={(e) => setDayFilter(e.target.value)}
             options={[
               { value: '', label: 'Todos los días' },
-              { value: 'monday', label: 'Lunes' },
-              { value: 'tuesday', label: 'Martes' },
-              { value: 'wednesday', label: 'Miércoles' },
-              { value: 'thursday', label: 'Jueves' },
-              { value: 'friday', label: 'Viernes' },
-              { value: 'saturday', label: 'Sábado' },
-              { value: 'sunday', label: 'Domingo' }
+              { value: 'Lunes', label: 'Lunes' },
+              { value: 'Martes', label: 'Martes' },
+              { value: 'Miércoles', label: 'Miércoles' },
+              { value: 'Jueves', label: 'Jueves' },
+              { value: 'Viernes', label: 'Viernes' },
+              { value: 'Sábado', label: 'Sábado' },
+              { value: 'Domingo', label: 'Domingo' }
             ]}
           />
           
@@ -235,7 +267,7 @@ const Classes = () => {
                 <CalendarDaysIcon className="h-4 w-4 text-gray-400" />
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    {classItem.schedule ? formatDay(classItem.schedule.day) : 'Sin programar'}
+                    {getScheduleDays(classItem.schedules)}
                   </p>
                   <p className="text-xs text-gray-500">Día de la semana</p>
                 </div>
@@ -245,10 +277,7 @@ const Classes = () => {
                 <ClockIcon className="h-4 w-4 text-gray-400" />
                 <div>
                   <p className="text-sm font-medium text-gray-900">
-                    {classItem.schedule ? 
-                      `${formatTime(classItem.schedule.startTime)} - ${formatTime(classItem.schedule.endTime)}` 
-                      : 'Sin horario'
-                    }
+                    {formatSchedules(classItem.schedules, classItem.durationHours)}
                   </p>
                   <p className="text-xs text-gray-500">Horario</p>
                 </div>
@@ -289,7 +318,7 @@ const Classes = () => {
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Duración</p>
                   <p className="text-sm font-semibold text-gray-900">
-                    {classItem.duration || 'No definida'} min
+                    {classItem.durationHours || 'No definida'} min
                   </p>
                 </div>
               </div>

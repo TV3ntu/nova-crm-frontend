@@ -138,13 +138,26 @@ export const studentsAPI = {
     return response;
   },
 
-  enrollInClass: async (studentId, classId) => {
-    const response = await apiClient.post(`/api/students/${studentId}/enroll`, { classId });
+  getAssignedClasses: async (id) => {
+    const response = await apiClient.get(`/api/students/${id}/classes`);
     return response;
   },
 
-  unenrollFromClass: async (studentId, classId) => {
-    const response = await apiClient.delete(`/api/students/${studentId}/enroll/${classId}`);
+  enrollStudent: async (studentId, classId) => {
+    const response = await apiClient.post('/api/students/enroll', {
+      studentId: parseInt(studentId),
+      classId: parseInt(classId)
+    });
+    return response;
+  },
+
+  unenrollStudent: async (studentId, classId) => {
+    const response = await apiClient.delete('/api/students/unenroll', {
+      data: {
+        studentId: parseInt(studentId),
+        classId: parseInt(classId)
+      }
+    });
     return response;
   }
 };
@@ -221,6 +234,29 @@ export const classesAPI = {
 
   getSchedule: async (params = {}) => {
     const response = await apiClient.get('/api/classes/schedule', { params });
+    return response;
+  },
+
+  assignTeacher: async (classId, teacherId) => {
+    const response = await apiClient.post('/api/teachers/assign', {
+      teacherId: parseInt(teacherId),
+      classId: parseInt(classId)
+    });
+    return response;
+  },
+
+  unassignTeacher: async (classId, teacherId) => {
+    const response = await apiClient.delete('/api/teachers/unassign', {
+      data: {
+        teacherId: parseInt(teacherId),
+        classId: parseInt(classId)
+      }
+    });
+    return response;
+  },
+
+  getAssignedTeachers: async (classId) => {
+    const response = await apiClient.get(`/api/classes/${classId}/teachers`);
     return response;
   }
 };

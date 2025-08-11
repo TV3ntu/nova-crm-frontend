@@ -6,17 +6,37 @@ import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import { classesAPI } from '../services/api';
+import TeacherAssignmentModal from '../components/modals/TeacherAssignmentModal';
+import StudentEnrollmentModal from '../components/modals/StudentEnrollmentModal';
+import { classesAPI, teachersAPI, studentsAPI } from '../services/api';
+import { useNotification } from '../contexts/NotificationContext';
 
 const ClassDetail = () => {
   const { id } = useParams();
   const [classData, setClassData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [assignedTeachers, setAssignedTeachers] = useState([]);
+  const [showTeacherAssignmentModal, setShowTeacherAssignmentModal] = useState(false);
+  const [enrolledStudents, setEnrolledStudents] = useState([]);
+  const [showStudentEnrollmentModal, setShowStudentEnrollmentModal] = useState(false);
+  const { showSuccess, showError } = useNotification();
 
   useEffect(() => {
     loadClass();
   }, [id]);
+
+  useEffect(() => {
+    if (classData?.teacherIds?.length >= 0) {
+      loadAssignedTeachers();
+    }
+  }, [classData?.teacherIds]);
+
+  useEffect(() => {
+    if (classData?.studentIds?.length >= 0) {
+      loadEnrolledStudents();
+    }
+  }, [classData?.studentIds]);
 
   const loadClass = async () => {
     setLoading(true);
@@ -31,29 +51,14 @@ const ClassDetail = () => {
         id: apiClassData.id,
         name: apiClassData.name,
         description: apiClassData.description,
-        teacher: {
-          id: apiClassData.teacherId,
-          name: apiClassData.teacherName || 'Sin asignar',
-          avatar: apiClassData.teacherAvatar || null
-        },
-        schedule: {
-          day: apiClassData.day,
-          startTime: apiClassData.startTime,
-          endTime: apiClassData.endTime || calculateEndTime(apiClassData.startTime, apiClassData.duration),
-          duration: apiClassData.duration || 90
-        },
         price: apiClassData.price,
-        maxStudents: apiClassData.maxStudents || 20,
-        currentStudents: apiClassData.enrolledStudents?.length || 0,
+        durationHours: apiClassData.durationHours,
+        schedules: apiClassData.schedules || [],
+        teacherIds: apiClassData.teacherIds || [],
+        studentIds: apiClassData.studentIds || [],
         status: apiClassData.status || 'active',
         enrolledStudents: apiClassData.enrolledStudents || [],
         monthlyRevenue: apiClassData.monthlyRevenue || 0,
-        attendanceRate: apiClassData.attendanceRate || 0,
-        statistics: apiClassData.statistics || {
-          totalRevenue: 0,
-          averageAttendance: 0,
-          retentionRate: 0
-        }
       });
     } catch (error) {
       console.error('Error loading class:', error);
@@ -63,31 +68,135 @@ const ClassDetail = () => {
     }
   };
 
-  const calculateEndTime = (startTime, duration) => {
-    if (!startTime || !duration) return '';
-    
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const totalMinutes = hours * 60 + minutes + parseInt(duration);
-    const endHours = Math.floor(totalMinutes / 60);
-    const endMinutes = totalMinutes % 60;
-    
-    return `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+  const loadAssignedTeachers = async () => {
+    try {
+      // Get teacher details for each teacherId from the class
+      if (classData?.teacherIds?.length > 0) {
+        const teacherPromises = classData.teacherIds.map(teacherId => 
+          teachersAPI.getById(teacherId)
+        );
+        const teacherResponses = await Promise.all(teacherPromises);
+        const teachers = teacherResponses.map(response => response.data);
+        setAssignedTeachers(teachers);
+      } else {
+        setAssignedTeachers([]);
+      }
+    } catch (error) {
+      console.error('Error loading assigned teachers:', error);
+      setAssignedTeachers([]);
+    }
+  };
+
+  const loadEnrolledStudents = async () => {
+    try {
+      // Get student details for each studentId from the class
+      if (classData?.studentIds?.length > 0) {
+        const studentPromises = classData.studentIds.map(studentId => 
+          studentsAPI.getById(studentId)
+        );
+        const studentResponses = await Promise.all(studentPromises);
+        const students = studentResponses.map(response => response.data);
+        setEnrolledStudents(students);
+      } else {
+        setEnrolledStudents([]);
+      }
+    } catch (error) {
+      console.error('Error loading enrolled students:', error);
+      setEnrolledStudents([]);
+    }
+  };
+
+  const handleAssignTeacher = async (teacher) => {
+    try {
+      await classesAPI.assignTeacher(id, teacher.id);
+      await loadClass(); // Reload class to get updated teacherIds
+      await loadAssignedTeachers(); // Reload assigned teachers
+      showSuccess('Profesora asignada exitosamente');
+    } catch (error) {
+      console.error('Error assigning teacher:', error);
+      showError('Error al asignar profesora');
+      throw error;
+    }
+  };
+
+  const handleUnassignTeacher = async (teacherId) => {
+    try {
+      await classesAPI.unassignTeacher(id, teacherId);
+      await loadClass(); // Reload class to get updated teacherIds
+      await loadAssignedTeachers(); // Reload assigned teachers
+      showSuccess('Profesora desasignada exitosamente');
+    } catch (error) {
+      console.error('Error unassigning teacher:', error);
+      showError('Error al desasignar profesora');
+    }
+  };
+
+  const handleEnrollStudent = async (student) => {
+    try {
+      await studentsAPI.enrollStudent(student.id, id);
+      await loadClass(); // Reload class to get updated studentIds
+      await loadEnrolledStudents(); // Reload enrolled students
+      showSuccess('Estudiante inscrito exitosamente');
+    } catch (error) {
+      console.error('Error enrolling student:', error);
+      showError('Error al inscribir estudiante');
+      throw error;
+    }
+  };
+
+  const handleUnenrollStudent = async (studentId) => {
+    try {
+      await studentsAPI.unenrollStudent(studentId, id);
+      await loadClass(); // Reload class to get updated studentIds
+      await loadEnrolledStudents(); // Reload enrolled students
+      showSuccess('Estudiante desinscrito exitosamente');
+    } catch (error) {
+      console.error('Error unenrolling student:', error);
+      showError('Error al desinscribir estudiante');
+    }
   };
 
   const getPaymentStatusBadge = (status) => {
     switch (status) {
       case 'overdue':
-        return <Badge variant="danger" size="sm">Mora</Badge>;
+        return <Badge variant="danger">Atrasado</Badge>;
       case 'pending':
-        return <Badge variant="warning" size="sm">Pendiente</Badge>;
+        return <Badge variant="warning">Pendiente</Badge>;
+      case 'paid':
+        return <Badge variant="success">Pagado</Badge>;
       default:
-        return <Badge variant="success" size="sm">Al día</Badge>;
+        return <Badge variant="secondary">Desconocido</Badge>;
     }
+  };
+
+  const formatDayOfWeek = (dayOfWeek) => {
+    const dayMap = {
+      'MONDAY': 'Lunes',
+      'TUESDAY': 'Martes',
+      'WEDNESDAY': 'Miércoles',
+      'THURSDAY': 'Jueves',
+      'FRIDAY': 'Viernes',
+      'SATURDAY': 'Sábado',
+      'SUNDAY': 'Domingo'
+    };
+    return dayMap[dayOfWeek] || dayOfWeek;
+  };
+
+  const formatTime = (hour, minute) => {
+    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+  };
+
+  const calculateEndTime = (startHour, startMinute, durationHours) => {
+    const totalStartMinutes = startHour * 60 + startMinute;
+    const totalEndMinutes = totalStartMinutes + (durationHours * 60);
+    const endHour = Math.floor(totalEndMinutes / 60);
+    const endMinute = totalEndMinutes % 60;
+    return formatTime(endHour, endMinute);
   };
 
   const getCapacityPercentage = () => {
     if (!classData) return 0;
-    return (classData.currentStudents / classData.maxStudents) * 100;
+    return (classData.enrolledStudents.length / 20) * 100;
   };
 
   if (loading) {
@@ -135,11 +244,14 @@ const ClassDetail = () => {
         </div>
         
         <div className="flex space-x-3">
-          <Button variant="secondary" icon={UserPlusIcon}>
+          <Button variant="secondary" icon={UserPlusIcon} onClick={() => setShowStudentEnrollmentModal(true)}>
             Inscribir Estudiante
           </Button>
           <Button as={Link} to={`/classes/${classData.id}/edit`} variant="secondary" icon={PencilIcon}>
             Editar
+          </Button>
+          <Button variant="secondary" icon={UserPlusIcon} onClick={() => setShowTeacherAssignmentModal(true)}>
+            Asignar Profesora
           </Button>
         </div>
       </div>
@@ -152,19 +264,57 @@ const ClassDetail = () => {
             
             <div className="space-y-4">
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Profesora</p>
-                <div className="flex items-center space-x-2 mt-1">
-                  <Avatar src={classData.teacher.avatar} name={classData.teacher.name} size="sm" />
-                  <span className="text-sm text-gray-900">{classData.teacher.name}</span>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Profesoras</p>
+                <div className="mt-1">
+                  {assignedTeachers.length > 0 ? (
+                    <div className="space-y-2">
+                      {assignedTeachers.map((teacher) => (
+                        <div key={teacher.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            <Avatar 
+                              src={teacher.avatar} 
+                              name={teacher.fullName || `${teacher.firstName} ${teacher.lastName}`} 
+                              size="sm" 
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-gray-900">
+                                {teacher.fullName || `${teacher.firstName} ${teacher.lastName}`}
+                              </span>
+                              {teacher.isStudioOwner && (
+                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                  Propietaria
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            icon={UserMinusIcon} 
+                            className="text-red-600 hover:text-red-700" 
+                            onClick={() => handleUnassignTeacher(teacher.id)}
+                          >
+                            Quitar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">Sin profesoras asignadas</p>
+                  )}
                 </div>
               </div>
               
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Horario</p>
-                <p className="text-sm text-gray-900 mt-1">
-                  {classData.schedule.day} {classData.schedule.startTime} - {classData.schedule.endTime}
-                </p>
-                <p className="text-xs text-gray-500">({classData.schedule.duration} minutos)</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Horarios</p>
+                <ul className="list-none mt-1">
+                  {classData.schedules.map((schedule, index) => (
+                    <li key={index} className="text-sm text-gray-900">
+                      {formatDayOfWeek(schedule.dayOfWeek)} {formatTime(schedule.startHour, schedule.startMinute)} - {calculateEndTime(schedule.startHour, schedule.startMinute, classData.durationHours)}
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-gray-500">({classData.durationHours} horas)</p>
               </div>
               
               <div>
@@ -182,7 +332,7 @@ const ClassDetail = () => {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Estudiantes Inscritos</span>
                 <span className="text-sm font-semibold text-gray-900">
-                  {classData.currentStudents}/{classData.maxStudents}
+                  {classData.enrolledStudents.length}/20
                 </span>
               </div>
               
@@ -202,7 +352,7 @@ const ClassDetail = () => {
               <div className="flex justify-between items-center text-xs text-gray-500">
                 <span>0</span>
                 <span>{Math.round(getCapacityPercentage())}% ocupado</span>
-                <span>{classData.maxStudents}</span>
+                <span>20</span>
               </div>
             </div>
           </Card>
@@ -218,16 +368,6 @@ const ClassDetail = () => {
                   ${classData.monthlyRevenue.toLocaleString()}
                 </span>
               </div>
-              
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Asistencia Promedio</span>
-                <span className="text-sm font-semibold text-gray-900">{classData.attendanceRate}%</span>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Retención</span>
-                <span className="text-sm font-semibold text-gray-900">{classData.statistics.retentionRate}%</span>
-              </div>
             </div>
           </Card>
         </div>
@@ -241,7 +381,7 @@ const ClassDetail = () => {
                 <Button variant="ghost" size="sm">
                   Exportar Lista
                 </Button>
-                <Button variant="secondary" size="sm" icon={UserPlusIcon}>
+                <Button variant="secondary" size="sm" icon={UserPlusIcon} onClick={() => setShowStudentEnrollmentModal(true)}>
                   Inscribir Estudiante
                 </Button>
               </div>
@@ -266,27 +406,34 @@ const ClassDetail = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {classData.enrolledStudents.map((student) => (
+                  {enrolledStudents.map((student) => (
                     <tr key={student.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <Avatar src={student.avatar} name={student.name} size="sm" />
+                          <Avatar 
+                            src={student.avatar} 
+                            name={student.fullName || `${student.firstName} ${student.lastName}`} 
+                            size="sm" 
+                          />
                           <div className="ml-3">
-                            <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                            <div className="text-sm font-medium text-gray-900">
+                              {student.fullName || `${student.firstName} ${student.lastName}`}
+                            </div>
+                            <div className="text-sm text-gray-500">{student.phone}</div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {new Date(student.enrollmentDate).toLocaleDateString('es-CL')}
+                        <span className="text-gray-400 italic">No disponible</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {getPaymentStatusBadge(student.paymentStatus)}
+                        <Badge variant="secondary">Pendiente</Badge>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                         <Button as={Link} to={`/students/${student.id}`} variant="ghost" size="sm">
                           Ver
                         </Button>
-                        <Button variant="ghost" size="sm" icon={UserMinusIcon} className="text-red-600 hover:text-red-700">
+                        <Button variant="ghost" size="sm" icon={UserMinusIcon} className="text-red-600 hover:text-red-700" onClick={() => handleUnenrollStudent(student.id)}>
                           Desinscribir
                         </Button>
                       </td>
@@ -296,7 +443,7 @@ const ClassDetail = () => {
               </table>
             </div>
             
-            {classData.enrolledStudents.length === 0 && (
+            {enrolledStudents.length === 0 && (
               <div className="text-center py-12">
                 <div className="mx-auto h-12 w-12 text-gray-400">
                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -308,7 +455,7 @@ const ClassDetail = () => {
                   Comienza inscribiendo estudiantes en esta clase.
                 </p>
                 <div className="mt-6">
-                  <Button icon={UserPlusIcon}>
+                  <Button icon={UserPlusIcon} onClick={() => setShowStudentEnrollmentModal(true)}>
                     Inscribir Primer Estudiante
                   </Button>
                 </div>
@@ -317,6 +464,19 @@ const ClassDetail = () => {
           </Card>
         </div>
       </div>
+
+      <TeacherAssignmentModal
+        isOpen={showTeacherAssignmentModal}
+        onClose={() => setShowTeacherAssignmentModal(false)}
+        onAssign={handleAssignTeacher}
+        assignedTeacherIds={classData?.teacherIds || []}
+      />
+      <StudentEnrollmentModal
+        isOpen={showStudentEnrollmentModal}
+        onClose={() => setShowStudentEnrollmentModal(false)}
+        onEnroll={handleEnrollStudent}
+        enrolledStudentIds={classData?.studentIds || []}
+      />
     </div>
   );
 };

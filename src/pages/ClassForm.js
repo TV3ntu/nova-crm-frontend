@@ -119,6 +119,22 @@ const ClassForm = () => {
     }));
   };
 
+  const addSchedule = () => {
+    setFormData(prev => ({
+      ...prev,
+      schedules: [...prev.schedules, { dayOfWeek: '', startHour: 18, startMinute: 0 }]
+    }));
+  };
+
+  const removeSchedule = (index) => {
+    if (formData.schedules.length > 1) {
+      setFormData(prev => ({
+        ...prev,
+        schedules: prev.schedules.filter((_, i) => i !== index)
+      }));
+    }
+  };
+
   const validateForm = () => {
     const newErrors = {};
     
@@ -142,7 +158,7 @@ const ClassForm = () => {
           newErrors[`schedules.${index}.startHour`] = 'Debe seleccionar una hora';
         }
         
-        if (!schedule.startMinute) {
+        if (schedule.startMinute === null || schedule.startMinute === undefined || schedule.startMinute === '') {
           newErrors[`schedules.${index}.startMinute`] = 'Debe seleccionar un minuto';
         }
       });
@@ -248,43 +264,72 @@ const ClassForm = () => {
         </Card>
 
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Horario</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Horarios</h2>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={addSchedule}
+              className="text-sm"
+            >
+              + Agregar Horario
+            </Button>
+          </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-6">
             {formData.schedules.map((schedule, index) => (
-              <div key={index}>
-                <Select
-                  label="Día de la Semana"
-                  name="dayOfWeek"
-                  value={schedule.dayOfWeek}
-                  onChange={(e) => handleScheduleChange(index, 'dayOfWeek', e.target.value)}
-                  error={errors[`schedules.${index}.dayOfWeek`]}
-                  required
-                  options={daysOfWeek}
-                  placeholder="Seleccionar día"
-                />
+              <div key={index} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-sm font-medium text-gray-700">
+                    Horario {index + 1}
+                  </h3>
+                  {formData.schedules.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      onClick={() => removeSchedule(index)}
+                      className="text-xs"
+                    >
+                      Eliminar
+                    </Button>
+                  )}
+                </div>
                 
-                <Select
-                  label="Hora de Inicio"
-                  name="startHour"
-                  value={schedule.startHour}
-                  onChange={(e) => handleScheduleChange(index, 'startHour', e.target.value)}
-                  error={errors[`schedules.${index}.startHour`]}
-                  required
-                  options={hourOptions}
-                  placeholder="Seleccionar hora"
-                />
-                
-                <Select
-                  label="Minuto de Inicio"
-                  name="startMinute"
-                  value={schedule.startMinute}
-                  onChange={(e) => handleScheduleChange(index, 'startMinute', e.target.value)}
-                  error={errors[`schedules.${index}.startMinute`]}
-                  required
-                  options={minuteOptions}
-                  placeholder="Seleccionar minuto"
-                />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Select
+                    label="Día de la Semana"
+                    name="dayOfWeek"
+                    value={schedule.dayOfWeek}
+                    onChange={(e) => handleScheduleChange(index, 'dayOfWeek', e.target.value)}
+                    error={errors[`schedules.${index}.dayOfWeek`]}
+                    required
+                    options={daysOfWeek}
+                    placeholder="Seleccionar día"
+                  />
+                  
+                  <Select
+                    label="Hora de Inicio"
+                    name="startHour"
+                    value={schedule.startHour}
+                    onChange={(e) => handleScheduleChange(index, 'startHour', e.target.value)}
+                    error={errors[`schedules.${index}.startHour`]}
+                    required
+                    options={hourOptions}
+                    placeholder="Seleccionar hora"
+                  />
+                  
+                  <Select
+                    label="Minuto de Inicio"
+                    name="startMinute"
+                    value={schedule.startMinute}
+                    onChange={(e) => handleScheduleChange(index, 'startMinute', e.target.value)}
+                    error={errors[`schedules.${index}.startMinute`]}
+                    required
+                    options={minuteOptions}
+                    placeholder="Seleccionar minuto"
+                  />
+                </div>
               </div>
             ))}
           </div>

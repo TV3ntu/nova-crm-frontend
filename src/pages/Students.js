@@ -176,9 +176,9 @@ const Students = () => {
           <Card key={student.id} className="p-6 hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-3">
-                <Avatar src={student.avatar} name={student.name} size="md" />
+                <Avatar src={student.avatar} name={student.fullName || `${student.firstName} ${student.lastName}`} size="md" />
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{student.name}</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">{student.fullName || `${student.firstName} ${student.lastName}`}</h3>
                   <p className="text-sm text-gray-600">{student.email}</p>
                 </div>
               </div>
