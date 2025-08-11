@@ -1,25 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useNotification } from '../contexts/NotificationContext';
+import { useParams, useNavigate } from 'react-router-dom';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { teachersAPI } from '../services/api';
+import { useNotification } from '../contexts/NotificationContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const TeacherForm = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { showSuccess, showError } = useNotification();
+  const { logout } = useAuth();
   const isEditing = !!id;
 
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(isEditing);
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     isOwner: false,
+    address: '',
     selectedSpecialties: []
   });
   const [errors, setErrors] = useState({});
@@ -50,10 +54,12 @@ const TeacherForm = () => {
       const teacher = response.data;
       
       setFormData({
-        name: teacher.name || '',
+        firstName: teacher.firstName || '',
+        lastName: teacher.lastName || '',
         email: teacher.email || '',
         phone: teacher.phone || '',
-        isOwner: teacher.isOwner || false,
+        isOwner: teacher.isStudioOwner || false,
+        address: teacher.address || '',
         selectedSpecialties: teacher.specialties || []
       });
     } catch (error) {
@@ -92,8 +98,12 @@ const TeacherForm = () => {
   const validateForm = () => {
     const newErrors = {};
     
-    if (!formData.name.trim()) {
-      newErrors.name = 'El nombre es requerido';
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'El nombre es requerido';
+    }
+    
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'El apellido es requerido';
     }
     
     if (!formData.email.trim()) {
@@ -122,18 +132,54 @@ const TeacherForm = () => {
     setLoading(true);
     
     try {
+      // Debug: Verificar token antes de enviar
+      const token = localStorage.getItem('nova_crm_token');
+      console.log('Token disponible:', token ? 'Sí' : 'No');
+      console.log('Token length:', token ? token.length : 0);
+      console.log('Token (primeros 50 chars):', token ? token.substring(0, 50) + '...' : 'N/A');
+      
+      // Verificar si el token parece válido (JWT tiene 3 partes separadas por puntos)
+      if (token) {
+        const tokenParts = token.split('.');
+        console.log('Token parts count:', tokenParts.length);
+        if (tokenParts.length === 3) {
+          try {
+            const payload = JSON.parse(atob(tokenParts[1]));
+            const now = Math.floor(Date.now() / 1000);
+            const isExpired = payload.exp && payload.exp < now;
+            console.log('Token expiration:', new Date(payload.exp * 1000));
+            console.log('Current time:', new Date());
+            console.log('Token expired:', isExpired);
+            
+            if (isExpired) {
+              console.warn('Token ha expirado, necesita renovación');
+              showError('Sesión expirada. Por favor, cierra sesión e inicia sesión nuevamente.');
+              logout();
+              navigate('/login');
+              return;
+            }
+          } catch (e) {
+            console.error('Error parsing token:', e);
+          }
+        }
+      }
+      
       const teacherData = {
-        name: formData.name.trim(),
-        email: formData.email.trim(),
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
         phone: formData.phone.trim(),
-        isOwner: formData.isOwner,
-        specialties: formData.selectedSpecialties
+        email: formData.email.trim(),
+        address: formData.address?.trim() || null,
+        isStudioOwner: formData.isOwner
       };
+
+      console.log('Datos a enviar:', teacherData);
 
       if (isEditing) {
         await teachersAPI.update(id, teacherData);
         showSuccess('Profesora actualizada exitosamente');
       } else {
+        console.log('Intentando crear profesora...');
         await teachersAPI.create(teacherData);
         showSuccess('Profesora creada exitosamente');
       }
@@ -141,8 +187,39 @@ const TeacherForm = () => {
       navigate('/teachers');
     } catch (error) {
       console.error('Error saving teacher:', error);
-      const errorMessage = error.response?.data?.message || 'Error al guardar la profesora';
-      showError(errorMessage);
+      console.error('Error status:', error.response?.status);
+      console.error('Error data:', error.response?.data);
+      console.error('Error headers:', error.response?.headers);
+      
+      // Verificar si es problema de autenticación
+      if (error.response?.status === 403) {
+        const token = localStorage.getItem('nova_crm_token');
+        console.error('Token en localStorage:', token ? 'Presente' : 'Ausente');
+        console.error('Response body:', error.response?.data);
+        console.error('Response headers:', error.response?.headers);
+        
+        // Intentar obtener más información del error
+        if (error.response?.data) {
+          console.error('Error específico del servidor:', error.response.data);
+        }
+        
+        if (!token) {
+          showError('Sesión expirada. Por favor, inicia sesión nuevamente.');
+          logout();
+          navigate('/login');
+          return;
+        }
+        
+        // No hacer logout automático, mostrar el error específico
+        const errorMessage = error.response?.data?.message || 
+                            error.response?.data?.error || 
+                            'Error 403: Acceso denegado al crear profesora';
+        showError(`${errorMessage}. Revisa la consola para más detalles.`);
+        return;
+      } else {
+        const errorMessage = error.response?.data?.message || 'Error al guardar la profesora';
+        showError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -173,13 +250,23 @@ const TeacherForm = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input
-              label="Nombre Completo"
-              name="name"
-              value={formData.name}
+              label="Nombre"
+              name="firstName"
+              value={formData.firstName}
               onChange={handleChange}
-              error={errors.name}
+              error={errors.firstName}
               required
-              placeholder="Ej: Elena Martínez"
+              placeholder="Ej: Elena"
+            />
+            
+            <Input
+              label="Apellido"
+              name="lastName"
+              value={formData.lastName}
+              onChange={handleChange}
+              error={errors.lastName}
+              required
+              placeholder="Ej: Martínez"
             />
             
             <Input
@@ -202,6 +289,15 @@ const TeacherForm = () => {
               error={errors.phone}
               required
               placeholder="+56 9 1111 2222"
+            />
+            
+            <Input
+              label="Dirección"
+              name="address"
+              value={formData.address}
+              onChange={handleChange}
+              error={errors.address}
+              placeholder="Ej: Av. Providencia 1234"
             />
             
             <div className="flex items-center">

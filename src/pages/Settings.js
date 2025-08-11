@@ -45,10 +45,28 @@ const Settings = () => {
   const loadSettings = async () => {
     setInitialLoading(true);
     try {
-      const response = await settingsAPI.getAll();
-      setStudioSettings(response.data.studio);
-      setPaymentSettings(response.data.payment);
-      setUserSettings(response.data.user);
+      // Simular carga de configuración hasta que el backend tenga el endpoint
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Usar configuración por defecto
+      setStudioSettings({
+        name: 'NOVA Dance Studio',
+        address: 'Av. Providencia 1234, Santiago',
+        phone: '+56 2 1234 5678',
+        email: 'info@novadancestudio.cl'
+      });
+      
+      setPaymentSettings({
+        lateFeePercentage: 15,
+        lateFeeDays: 10,
+        acceptedMethods: ['Transferencia', 'Efectivo', 'Tarjeta']
+      });
+      
+      setUserSettings({
+        notifications: true,
+        emailAlerts: true,
+        theme: 'light'
+      });
     } catch (error) {
       console.error('Error loading settings:', error);
       showError('Error al cargar la configuración');
@@ -81,7 +99,8 @@ const Settings = () => {
           throw new Error('Sección de configuración no válida');
       }
 
-      await settingsAPI.update(section, settingsData);
+      // Simular guardado de configuración hasta que el backend tenga el endpoint
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       showSuccess(`Configuración de ${sectionName} guardada exitosamente`);
     } catch (error) {

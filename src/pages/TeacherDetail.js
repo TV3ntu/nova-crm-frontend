@@ -30,23 +30,16 @@ const TeacherDetail = () => {
       // Transform API data to match component expectations
       setTeacher({
         id: teacherData.id,
-        name: teacherData.name,
+        name: teacherData.fullName || `${teacherData.firstName} ${teacherData.lastName}`,
         email: teacherData.email,
         phone: teacherData.phone,
         avatar: teacherData.avatar || null,
-        isOwner: teacherData.isOwner || false,
+        isOwner: teacherData.isStudioOwner || false,
         specialties: teacherData.specialties || [],
         assignedClasses: teacherData.assignedClasses || [],
         monthlyCompensation: teacherData.monthlyCompensation || 0,
-        compensationRate: teacherData.isOwner ? 100 : 50,
-        revenueHistory: teacherData.revenueHistory || [
-          { month: 'Ene', amount: 420000 },
-          { month: 'Feb', amount: 435000 },
-          { month: 'Mar', amount: 440000 },
-          { month: 'Abr', amount: 445000 },
-          { month: 'May', amount: 450000 },
-          { month: 'Jun', amount: 450000 }
-        ],
+        compensationRate: teacherData.isStudioOwner ? 100 : 50,
+        revenueHistory: teacherData.revenueHistory || [],
         students: teacherData.students || []
       });
     } catch (error) {

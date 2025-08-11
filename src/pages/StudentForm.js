@@ -4,7 +4,6 @@ import { useNotification } from '../contexts/NotificationContext';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
-import Select from '../components/common/Select';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { studentsAPI } from '../services/api';
 
@@ -17,14 +16,12 @@ const StudentForm = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(isEditing);
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     birthDate: '',
-    address: '',
-    emergencyContact: '',
-    emergencyPhone: '',
-    selectedClasses: []
+    address: ''
   });
   const [errors, setErrors] = useState({});
 
@@ -51,14 +48,12 @@ const StudentForm = () => {
       const student = response.data;
       
       setFormData({
-        name: student.name || '',
+        firstName: student.firstName || '',
+        lastName: student.lastName || '',
         email: student.email || '',
         phone: student.phone || '',
         birthDate: student.birthDate || '',
-        address: student.address || '',
-        emergencyContact: student.emergencyContact || '',
-        emergencyPhone: student.emergencyPhone || '',
-        selectedClasses: student.classes?.map(cls => cls.id) || []
+        address: student.address || ''
       });
     } catch (error) {
       console.error('Error loading student:', error);
@@ -84,27 +79,18 @@ const StudentForm = () => {
     }
   };
 
-  const handleClassToggle = (classValue) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedClasses: prev.selectedClasses.includes(classValue)
-        ? prev.selectedClasses.filter(c => c !== classValue)
-        : [...prev.selectedClasses, classValue]
-    }));
-  };
-
   const validateForm = () => {
     const newErrors = {};
     
-    if (!formData.name.trim()) {
-      newErrors.name = 'El nombre es requerido';
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = 'El nombre es requerido';
     }
     
-    if (!formData.email.trim()) {
-      newErrors.email = 'El email es requerido';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'El email no es válido';
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = 'El apellido es requerido';
     }
+    
+    // Email is optional - no validation needed
     
     if (!formData.phone.trim()) {
       newErrors.phone = 'El teléfono es requerido';
@@ -112,10 +98,6 @@ const StudentForm = () => {
     
     if (!formData.birthDate) {
       newErrors.birthDate = 'La fecha de nacimiento es requerida';
-    }
-    
-    if (formData.selectedClasses.length === 0) {
-      newErrors.selectedClasses = 'Debe seleccionar al menos una clase';
     }
     
     setErrors(newErrors);
@@ -131,14 +113,12 @@ const StudentForm = () => {
     
     try {
       const studentData = {
-        name: formData.name.trim(),
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         birthDate: formData.birthDate,
-        address: formData.address.trim(),
-        emergencyContact: formData.emergencyContact.trim(),
-        emergencyPhone: formData.emergencyPhone.trim(),
-        classes: formData.selectedClasses
+        address: formData.address.trim()
       };
 
       if (isEditing) {
@@ -157,22 +137,6 @@ const StudentForm = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const calculateMonthlyTotal = () => {
-    const classPrices = {
-      'ballet-clasico': 800,
-      'jazz': 700,
-      'hip-hop': 650,
-      'contemporaneo': 750,
-      'salsa': 600,
-      'bachata': 600,
-      'tango': 700
-    };
-    
-    return formData.selectedClasses.reduce((total, classValue) => {
-      return total + (classPrices[classValue] || 0);
-    }, 0);
   };
 
   if (initialLoading) {
@@ -202,13 +166,23 @@ const StudentForm = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input
-              label="Nombre Completo"
-              name="name"
-              value={formData.name}
+              label="Nombre"
+              name="firstName"
+              value={formData.firstName}
               onChange={handleChange}
-              error={errors.name}
+              error={errors.firstName}
               required
-              placeholder="Ej: María García"
+              placeholder="Ej: María"
+            />
+            
+            <Input
+              label="Apellido"
+              name="lastName"
+              value={formData.lastName}
+              onChange={handleChange}
+              error={errors.lastName}
+              required
+              placeholder="Ej: García"
             />
             
             <Input
@@ -218,7 +192,6 @@ const StudentForm = () => {
               value={formData.email}
               onChange={handleChange}
               error={errors.email}
-              required
               placeholder="maria@email.com"
             />
             
@@ -252,65 +225,6 @@ const StudentForm = () => {
               containerClassName="md:col-span-2"
             />
           </div>
-        </Card>
-
-        {/* Contacto de Emergencia */}
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Contacto de Emergencia</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input
-              label="Nombre del Contacto"
-              name="emergencyContact"
-              value={formData.emergencyContact}
-              onChange={handleChange}
-              placeholder="Ej: Pedro García"
-            />
-            
-            <Input
-              label="Teléfono de Emergencia"
-              name="emergencyPhone"
-              type="tel"
-              value={formData.emergencyPhone}
-              onChange={handleChange}
-              placeholder="+56 9 8765 4321"
-            />
-          </div>
-        </Card>
-
-        {/* Selección de Clases */}
-        <Card className="p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Clases</h2>
-          
-          <div className="space-y-3">
-            {availableClasses.map((classOption) => (
-              <label key={classOption.value} className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={formData.selectedClasses.includes(classOption.value)}
-                  onChange={() => handleClassToggle(classOption.value)}
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                />
-                <span className="ml-3 text-sm text-gray-900">{classOption.label}</span>
-              </label>
-            ))}
-          </div>
-          
-          {errors.selectedClasses && (
-            <p className="mt-2 text-sm text-red-600">{errors.selectedClasses}</p>
-          )}
-          
-          {formData.selectedClasses.length > 0 && (
-            <div className="mt-4 p-4 bg-primary-50 rounded-lg">
-              <h3 className="text-sm font-medium text-primary-900">Resumen de Costos</h3>
-              <p className="text-sm text-primary-700 mt-1">
-                Total mensual: <span className="font-semibold">${calculateMonthlyTotal().toLocaleString()}</span>
-              </p>
-              <p className="text-xs text-primary-600 mt-1">
-                {formData.selectedClasses.length} clase{formData.selectedClasses.length > 1 ? 's' : ''} seleccionada{formData.selectedClasses.length > 1 ? 's' : ''}
-              </p>
-            </div>
-          )}
         </Card>
 
         {/* Botones de Acción */}

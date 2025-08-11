@@ -16,59 +16,60 @@ const ClassForm = () => {
 
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(isEditing);
-  const [teachers, setTeachers] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    teacherId: '',
-    day: '',
-    startTime: '',
-    duration: 90,
     price: '',
-    maxStudents: 20
+    durationHours: 1.5,
+    schedules: [
+      {
+        dayOfWeek: '',
+        startHour: 18,
+        startMinute: 0
+      }
+    ]
   });
   const [errors, setErrors] = useState({});
 
   const daysOfWeek = [
-    { value: 'Lunes', label: 'Lunes' },
-    { value: 'Martes', label: 'Martes' },
-    { value: 'Miércoles', label: 'Miércoles' },
-    { value: 'Jueves', label: 'Jueves' },
-    { value: 'Viernes', label: 'Viernes' },
-    { value: 'Sábado', label: 'Sábado' },
-    { value: 'Domingo', label: 'Domingo' }
+    { value: 'MONDAY', label: 'Lunes' },
+    { value: 'TUESDAY', label: 'Martes' },
+    { value: 'WEDNESDAY', label: 'Miércoles' },
+    { value: 'THURSDAY', label: 'Jueves' },
+    { value: 'FRIDAY', label: 'Viernes' },
+    { value: 'SATURDAY', label: 'Sábado' },
+    { value: 'SUNDAY', label: 'Domingo' }
   ];
 
-  const timeSlots = [
-    { value: '15:00', label: '15:00' },
-    { value: '16:30', label: '16:30' },
-    { value: '18:00', label: '18:00' },
-    { value: '19:30', label: '19:30' },
-    { value: '20:00', label: '20:00' },
-    { value: '21:00', label: '21:00' }
+  const hourOptions = [
+    { value: 15, label: '15:00' },
+    { value: 16, label: '16:00' },
+    { value: 17, label: '17:00' },
+    { value: 18, label: '18:00' },
+    { value: 19, label: '19:00' },
+    { value: 20, label: '20:00' },
+    { value: 21, label: '21:00' }
+  ];
+
+  const minuteOptions = [
+    { value: 0, label: '00' },
+    { value: 15, label: '15' },
+    { value: 30, label: '30' },
+    { value: 45, label: '45' }
+  ];
+
+  const durationOptions = [
+    { value: 1, label: '1 hora' },
+    { value: 1.5, label: '1.5 horas' },
+    { value: 2, label: '2 horas' },
+    { value: 2.5, label: '2.5 horas' }
   ];
 
   useEffect(() => {
-    loadTeachers();
     if (isEditing) {
       loadClassData();
     }
   }, [isEditing, id]);
-
-  const loadTeachers = async () => {
-    try {
-      const response = await teachersAPI.getAll();
-      const teacherOptions = response.data.map(teacher => ({
-        value: teacher.id.toString(),
-        label: teacher.name
-      }));
-      setTeachers(teacherOptions);
-    } catch (error) {
-      console.error('Error loading teachers:', error);
-      // Fallback to empty array if teachers can't be loaded
-      setTeachers([]);
-    }
-  };
 
   const loadClassData = async () => {
     setInitialLoading(true);
@@ -79,12 +80,13 @@ const ClassForm = () => {
       setFormData({
         name: classData.name || '',
         description: classData.description || '',
-        teacherId: classData.teacherId?.toString() || '',
-        day: classData.day || '',
-        startTime: classData.startTime || '',
-        duration: classData.duration || 90,
         price: classData.price?.toString() || '',
-        maxStudents: classData.maxStudents || 20
+        durationHours: classData.durationHours || 1.5,
+        schedules: classData.schedules.map(schedule => ({
+          dayOfWeek: schedule.dayOfWeek,
+          startHour: schedule.startHour,
+          startMinute: schedule.startMinute
+        }))
       });
     } catch (error) {
       console.error('Error loading class:', error);
@@ -110,6 +112,13 @@ const ClassForm = () => {
     }
   };
 
+  const handleScheduleChange = (index, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      schedules: prev.schedules.map((schedule, i) => i === index ? { ...schedule, [field]: value } : schedule)
+    }));
+  };
+
   const validateForm = () => {
     const newErrors = {};
     
@@ -117,24 +126,26 @@ const ClassForm = () => {
       newErrors.name = 'El nombre de la clase es requerido';
     }
     
-    if (!formData.teacherId) {
-      newErrors.teacherId = 'Debe seleccionar una profesora';
-    }
-    
-    if (!formData.day) {
-      newErrors.day = 'Debe seleccionar un día';
-    }
-    
-    if (!formData.startTime) {
-      newErrors.startTime = 'Debe seleccionar una hora';
-    }
-    
     if (!formData.price || formData.price <= 0) {
       newErrors.price = 'El precio debe ser mayor a 0';
     }
     
-    if (!formData.maxStudents || formData.maxStudents <= 0) {
-      newErrors.maxStudents = 'El máximo de estudiantes debe ser mayor a 0';
+    if (formData.schedules.length === 0) {
+      newErrors.schedules = 'Debe agregar al menos un horario';
+    } else {
+      formData.schedules.forEach((schedule, index) => {
+        if (!schedule.dayOfWeek) {
+          newErrors[`schedules.${index}.dayOfWeek`] = 'Debe seleccionar un día';
+        }
+        
+        if (!schedule.startHour) {
+          newErrors[`schedules.${index}.startHour`] = 'Debe seleccionar una hora';
+        }
+        
+        if (!schedule.startMinute) {
+          newErrors[`schedules.${index}.startMinute`] = 'Debe seleccionar un minuto';
+        }
+      });
     }
     
     setErrors(newErrors);
@@ -152,12 +163,13 @@ const ClassForm = () => {
       const classData = {
         name: formData.name.trim(),
         description: formData.description.trim(),
-        teacherId: parseInt(formData.teacherId),
-        day: formData.day,
-        startTime: formData.startTime,
-        duration: parseInt(formData.duration),
         price: parseFloat(formData.price),
-        maxStudents: parseInt(formData.maxStudents)
+        durationHours: parseFloat(formData.durationHours),
+        schedules: formData.schedules.map(schedule => ({
+          dayOfWeek: schedule.dayOfWeek,
+          startHour: parseInt(schedule.startHour),
+          startMinute: parseInt(schedule.startMinute)
+        }))
       };
 
       if (isEditing) {
@@ -176,17 +188,6 @@ const ClassForm = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getEndTime = () => {
-    if (!formData.startTime || !formData.duration) return '';
-    
-    const [hours, minutes] = formData.startTime.split(':').map(Number);
-    const totalMinutes = hours * 60 + minutes + parseInt(formData.duration);
-    const endHours = Math.floor(totalMinutes / 60);
-    const endMinutes = totalMinutes % 60;
-    
-    return `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
   };
 
   if (initialLoading) {
@@ -233,17 +234,6 @@ const ClassForm = () => {
               containerClassName="md:col-span-2"
             />
             
-            <Select
-              label="Profesora"
-              name="teacherId"
-              value={formData.teacherId}
-              onChange={handleChange}
-              error={errors.teacherId}
-              required
-              options={teachers}
-              placeholder="Seleccionar profesora"
-            />
-            
             <Input
               label="Precio Mensual"
               name="price"
@@ -261,81 +251,58 @@ const ClassForm = () => {
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Horario</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Select
-              label="Día de la Semana"
-              name="day"
-              value={formData.day}
-              onChange={handleChange}
-              error={errors.day}
-              required
-              options={daysOfWeek}
-              placeholder="Seleccionar día"
-            />
-            
-            <Select
-              label="Hora de Inicio"
-              name="startTime"
-              value={formData.startTime}
-              onChange={handleChange}
-              error={errors.startTime}
-              required
-              options={timeSlots}
-              placeholder="Seleccionar hora"
-            />
-            
-            <Input
-              label="Duración (minutos)"
-              name="duration"
-              type="number"
-              value={formData.duration}
-              onChange={handleChange}
-              placeholder="90"
-              min="30"
-              step="15"
-            />
+            {formData.schedules.map((schedule, index) => (
+              <div key={index}>
+                <Select
+                  label="Día de la Semana"
+                  name="dayOfWeek"
+                  value={schedule.dayOfWeek}
+                  onChange={(e) => handleScheduleChange(index, 'dayOfWeek', e.target.value)}
+                  error={errors[`schedules.${index}.dayOfWeek`]}
+                  required
+                  options={daysOfWeek}
+                  placeholder="Seleccionar día"
+                />
+                
+                <Select
+                  label="Hora de Inicio"
+                  name="startHour"
+                  value={schedule.startHour}
+                  onChange={(e) => handleScheduleChange(index, 'startHour', e.target.value)}
+                  error={errors[`schedules.${index}.startHour`]}
+                  required
+                  options={hourOptions}
+                  placeholder="Seleccionar hora"
+                />
+                
+                <Select
+                  label="Minuto de Inicio"
+                  name="startMinute"
+                  value={schedule.startMinute}
+                  onChange={(e) => handleScheduleChange(index, 'startMinute', e.target.value)}
+                  error={errors[`schedules.${index}.startMinute`]}
+                  required
+                  options={minuteOptions}
+                  placeholder="Seleccionar minuto"
+                />
+              </div>
+            ))}
           </div>
-          
-          {formData.day && formData.startTime && formData.duration && (
-            <div className="mt-4 p-4 bg-primary-50 rounded-lg">
-              <h3 className="text-sm font-medium text-primary-900">Preview del Horario</h3>
-              <p className="text-sm text-primary-700 mt-1">
-                <strong>{formData.day}</strong> de <strong>{formData.startTime}</strong> a <strong>{getEndTime()}</strong>
-              </p>
-              <p className="text-xs text-primary-600 mt-1">
-                Duración: {formData.duration} minutos
-              </p>
-            </div>
-          )}
         </Card>
 
         <Card className="p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Configuración</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input
-              label="Máximo de Estudiantes"
-              name="maxStudents"
-              type="number"
-              value={formData.maxStudents}
+            <Select
+              label="Duración de la Clase"
+              name="durationHours"
+              value={formData.durationHours}
               onChange={handleChange}
-              error={errors.maxStudents}
-              required
-              placeholder="20"
-              min="1"
+              options={durationOptions}
+              placeholder="Seleccionar duración"
             />
           </div>
-          
-          {formData.price && formData.maxStudents && (
-            <div className="mt-4 p-4 bg-green-50 rounded-lg">
-              <h3 className="text-sm font-medium text-green-900">Proyección de Ingresos</h3>
-              <p className="text-sm text-green-700 mt-1">
-                Ingresos máximos mensuales: <strong>${(formData.price * formData.maxStudents).toLocaleString()}</strong>
-              </p>
-              <p className="text-xs text-green-600 mt-1">
-                Basado en {formData.maxStudents} estudiantes a ${formData.price} c/u
-              </p>
-            </div>
-          )}
         </Card>
 
         <div className="flex justify-end space-x-3">
