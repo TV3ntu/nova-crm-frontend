@@ -159,6 +159,28 @@ export const studentsAPI = {
       }
     });
     return response;
+  },
+
+  getStudentClasses: async (id) => {
+    const response = await apiClient.get(`/api/students/${id}/classes`);
+    return response;
+  },
+
+  getStudentEnrollments: async (id) => {
+    const response = await apiClient.get(`/api/students/${id}/enrollments`);
+    return response;
+  },
+
+  getEnrollmentDetails: async (studentId, classId) => {
+    const response = await apiClient.get(`/api/students/${studentId}/enrollment/${classId}`);
+    return response;
+  },
+
+  getEnrollmentsByDateRange: async (startDate, endDate) => {
+    const response = await apiClient.get('/api/students/enrollments/date-range', {
+      params: { startDate, endDate }
+    });
+    return response;
   }
 };
 
