@@ -126,7 +126,7 @@ const StudentDetail = () => {
           <Button as={Link} to={`/students/${student.id}/edit`} variant="secondary" icon={PencilIcon}>
             Editar
           </Button>
-          <Button variant="primary" icon={CreditCardIcon}>
+          <Button as={Link} to={`/payments/new?student=${student.id}`} variant="primary" icon={CreditCardIcon}>
             Registrar Pago
           </Button>
           <Button variant="danger" icon={TrashIcon} onClick={() => setShowDeleteDialog(true)}>
