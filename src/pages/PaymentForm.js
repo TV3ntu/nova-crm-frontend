@@ -25,7 +25,7 @@ const PaymentForm = () => {
     studentId: preselectedStudentId || '',
     selectedClasses: [],
     customAmounts: {}, // Store custom amounts for each class
-    paymentMethod: '',
+    paymentMethod: 'EFECTIVO', // Default payment method
     paymentDate: new Date().toISOString().split('T')[0],
     notes: ''
   });
@@ -144,28 +144,22 @@ const PaymentForm = () => {
   const handleStudentChange = (studentId, studentOption) => {
     setSelectedStudent(studentOption);
     
-    // Initialize custom amounts with default prices
+    // Initialize custom amounts with default prices and auto-select ALL classes
     const initialAmounts = {};
+    let allClassIds = [];
+    
     if (studentOption && studentOption.pendingClasses) {
       studentOption.pendingClasses.forEach(cls => {
         initialAmounts[cls.id] = cls.price;
+        allClassIds.push(cls.id);
       });
     }
     
     setFormData(prev => ({
       ...prev,
       studentId,
-      selectedClasses: studentOption ? studentOption.pendingClasses.map(cls => cls.id) : [],
+      selectedClasses: allClassIds, // Auto-select ALL pending classes
       customAmounts: initialAmounts
-    }));
-  };
-
-  const handleClassToggle = (classId) => {
-    setFormData(prev => ({
-      ...prev,
-      selectedClasses: prev.selectedClasses.includes(classId)
-        ? prev.selectedClasses.filter(id => id !== classId)
-        : [...prev.selectedClasses, classId]
     }));
   };
 
@@ -196,16 +190,15 @@ const PaymentForm = () => {
   };
 
   const calculatePayment = () => {
-    if (!selectedStudent) return { baseAmount: 0, lateFee: 0, total: 0 };
+    if (!selectedStudent || !selectedStudent.pendingClasses) return { baseAmount: 0, lateFee: 0, total: 0 };
 
-    const selectedClassesData = selectedStudent.pendingClasses.filter(cls => 
-      formData.selectedClasses.includes(cls.id)
+    // Calculate for all pending classes (auto-selected)
+    const baseAmount = selectedStudent.pendingClasses.reduce((sum, cls) => 
+      sum + (formData.customAmounts[cls.id] || cls.price), 0
     );
-
-    const baseAmount = selectedClassesData.reduce((sum, cls) => sum + (formData.customAmounts[cls.id] || cls.price), 0);
     
     // Calcular recargo por mora (15% si hay clases vencidas)
-    const hasOverdueClasses = selectedClassesData.some(cls => {
+    const hasOverdueClasses = selectedStudent.pendingClasses.some(cls => {
       const dueDate = new Date(cls.dueDate);
       const paymentDate = new Date(formData.paymentDate);
       return paymentDate > dueDate;
@@ -224,22 +217,24 @@ const PaymentForm = () => {
       newErrors.studentId = 'Debe seleccionar un estudiante';
     }
     
-    if (formData.selectedClasses.length === 0) {
-      newErrors.selectedClasses = 'Debe seleccionar al menos una clase para pagar';
-    }
-    
     if (!formData.paymentDate) {
       newErrors.paymentDate = 'Debe especificar la fecha de pago';
     }
     
-    // Validate custom amounts
-    const invalidAmounts = formData.selectedClasses.filter(classId => {
-      const amount = formData.customAmounts[classId];
-      return !amount || amount <= 0;
-    });
+    if (!formData.paymentMethod) {
+      newErrors.paymentMethod = 'Debe seleccionar un método de pago';
+    }
     
-    if (invalidAmounts.length > 0) {
-      newErrors.customAmounts = 'Todos los montos deben ser mayores a 0';
+    // Validate custom amounts for all pending classes (auto-selected)
+    if (selectedStudent && selectedStudent.pendingClasses) {
+      const invalidAmounts = selectedStudent.pendingClasses.filter(cls => {
+        const amount = formData.customAmounts[cls.id];
+        return !amount || amount <= 0;
+      });
+      
+      if (invalidAmounts.length > 0) {
+        newErrors.customAmounts = 'Todos los montos deben ser mayores a 0';
+      }
     }
     
     setErrors(newErrors);
@@ -271,6 +266,7 @@ const PaymentForm = () => {
           amount: parseFloat(amount.toFixed(1)), // Send as decimal number, not string
           paymentMonth: paymentMonth,
           paymentDate: formData.paymentDate,
+          paymentMethod: formData.paymentMethod, // Use selected payment method
           notes: formData.notes.trim() || null
         };
         
@@ -293,7 +289,7 @@ const PaymentForm = () => {
           totalAmount: parseFloat(totalAmount.toFixed(1)), // BigDecimal as decimal number
           paymentMonth: paymentMonthFormatted, // YearMonth format YYYY-MM
           paymentDate: formData.paymentDate, // LocalDate format YYYY-MM-DD
-          paymentMethod: "EFECTIVO", // Default payment method as required by DTO
+          paymentMethod: formData.paymentMethod, // Use selected payment method
           notes: formData.notes.trim() || null
         };
         
@@ -425,23 +421,23 @@ const PaymentForm = () => {
           )}
         </Card>
 
-        {/* Selección de Clases */}
+        {/* Clases a Pagar */}
         {selectedStudent && (
           <Card className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Clases a Pagar</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Clases a Pagar ({selectedStudent.pendingClasses.length})
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Se procesará el pago de todas las clases pendientes de la estudiante.
+            </p>
             
             <div className="space-y-3">
               {selectedStudent.pendingClasses.map((cls) => (
-                <div key={cls.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50">
+                <div key={cls.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.selectedClasses.includes(cls.id)}
-                        onChange={() => handleClassToggle(cls.id)}
-                        className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                      />
-                      <div className="ml-3">
+                      <div className="w-2 h-2 bg-primary-500 rounded-full mr-3"></div>
+                      <div>
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-medium text-gray-900">{cls.name}</span>
                           {cls.overdue && <Badge variant="danger" size="sm">Vencida</Badge>}
@@ -473,10 +469,6 @@ const PaymentForm = () => {
               ))}
             </div>
             
-            {errors.selectedClasses && (
-              <p className="mt-2 text-sm text-red-600">{errors.selectedClasses}</p>
-            )}
-            
             {errors.customAmounts && (
               <p className="mt-2 text-sm text-red-600">{errors.customAmounts}</p>
             )}
@@ -498,6 +490,16 @@ const PaymentForm = () => {
               required
             />
             
+            <Select
+              label="Método de Pago"
+              name="paymentMethod"
+              value={formData.paymentMethod}
+              onChange={handleChange}
+              options={paymentMethods}
+              error={errors.paymentMethod}
+              required
+            />
+            
             <Input
               label="Notas (Opcional)"
               name="notes"
@@ -510,13 +512,13 @@ const PaymentForm = () => {
         </Card>
 
         {/* Resumen del Pago */}
-        {formData.selectedClasses.length > 0 && (
+        {selectedStudent && selectedStudent.pendingClasses && selectedStudent.pendingClasses.length > 0 && (
           <Card className="p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Resumen del Pago</h2>
             
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Subtotal ({formData.selectedClasses.length} clase{formData.selectedClasses.length > 1 ? 's' : ''})</span>
+                <span className="text-sm text-gray-600">Subtotal ({selectedStudent.pendingClasses.length} clase{selectedStudent.pendingClasses.length > 1 ? 's' : ''})</span>
                 <span className="text-sm font-medium text-gray-900">${baseAmount.toLocaleString()}</span>
               </div>
               
@@ -562,7 +564,7 @@ const PaymentForm = () => {
           <Button
             type="submit"
             loading={loading}
-            disabled={loading || formData.selectedClasses.length === 0}
+            disabled={loading || !selectedStudent}
           >
             Procesar Pago ${total.toLocaleString()}
           </Button>

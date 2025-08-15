@@ -172,7 +172,7 @@ function App() {
                   </Layout>
                 </ProtectedRoute>
               } />
-              <Route path="/reports/outstanding" element={
+              <Route path="/reports/outstanding-payments" element={
                 <ProtectedRoute>
                   <Layout>
                     <OutstandingPayments />

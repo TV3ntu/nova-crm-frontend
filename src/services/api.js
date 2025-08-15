@@ -399,6 +399,17 @@ export const reportsAPI = {
     return apiClient.get(`/api/reports/payment-analytics${queryString ? `?${queryString}` : ''}`);
   },
   
+  getOutstandingPayments: async (month) => {
+    // month should be in YYYY-MM format (YearMonth)
+    const response = await apiClient.get(`/api/reports/outstanding-payments/${month}`);
+    return response;
+  },
+  
+  getRevenue: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return apiClient.get(`/api/reports/revenue${queryString ? `?${queryString}` : ''}`);
+  },
+  
   exportReport: (reportType, params = {}) => {
     const queryString = new URLSearchParams({
       ...params,

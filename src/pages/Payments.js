@@ -24,7 +24,6 @@ import { paymentsAPI, studentsAPI } from '../services/api';
 const Payments = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [studentFilter, setStudentFilter] = useState('');
 
@@ -51,14 +50,13 @@ const Payments = () => {
     () => {
       const params = {
         search: searchQuery,
-        status: statusFilter,
         month: monthFilter,
         student: studentFilter
       };
       console.log(' Parámetros enviados a la API:', params);
       return paymentsAPI.getAll(params);
     },
-    [searchQuery, statusFilter, monthFilter, studentFilter]
+    [searchQuery, monthFilter, studentFilter]
   );
 
   // Debug: Log payments data when it changes
@@ -93,21 +91,6 @@ const Payments = () => {
     return baseOptions;
   }, [students]);
 
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'paid':
-        return <Badge variant="success" icon={CheckCircleIcon}>Pagado</Badge>;
-      case 'pending':
-        return <Badge variant="warning" icon={ClockIcon}>Pendiente</Badge>;
-      case 'overdue':
-        return <Badge variant="danger" icon={ExclamationTriangleIcon}>Vencido</Badge>;
-      case 'cancelled':
-        return <Badge variant="secondary">Cancelado</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('es-CL', {
       year: 'numeric',
@@ -132,24 +115,23 @@ const Payments = () => {
   // Filtrar pagos localmente si hay datos (backend ya maneja la búsqueda por texto)
   const filteredPayments = useMemo(() => payments ? payments.filter(payment => {
     // No filtrar por searchQuery aquí - el backend ya lo hace
-    const matchesStatus = !statusFilter || payment.status === statusFilter;
-    
     const matchesMonth = !monthFilter || 
       new Date(payment.paymentDate).getMonth() === parseInt(monthFilter);
     
     const matchesStudent = !studentFilter || payment.studentId === parseInt(studentFilter);
     
-    return matchesStatus && matchesMonth && matchesStudent;
-  }) : [], [payments, statusFilter, monthFilter, studentFilter]);
+    return matchesMonth && matchesStudent;
+  }) : [], [payments, monthFilter, studentFilter]);
 
   // Calcular estadísticas
   const stats = useMemo(() => filteredPayments.reduce((acc, payment) => {
     acc.total += payment.amount || 0;
-    if (payment.status === 'paid') acc.paid += payment.amount || 0;
-    if (payment.status === 'pending') acc.pending += payment.amount || 0;
-    if (payment.status === 'overdue') acc.overdue += payment.amount || 0;
+    acc.count += 1;
     return acc;
-  }, { total: 0, paid: 0, pending: 0, overdue: 0 }), [filteredPayments]);
+  }, { 
+    total: 0, 
+    count: 0
+  }), [filteredPayments]);
 
   if (loading) {
     return (
@@ -191,7 +173,7 @@ const Payments = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -210,32 +192,8 @@ const Payments = () => {
               <CheckCircleIcon className="h-6 w-6 text-green-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pagado</p>
-              <p className="text-2xl font-bold text-gray-900">${stats.paid.toLocaleString()}</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <ClockIcon className="h-6 w-6 text-yellow-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Pendiente</p>
-              <p className="text-2xl font-bold text-gray-900">${stats.pending.toLocaleString()}</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Vencido</p>
-              <p className="text-2xl font-bold text-gray-900">${stats.overdue.toLocaleString()}</p>
+              <p className="text-sm font-medium text-gray-600">Cantidad de Pagos</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.count}</p>
             </div>
           </div>
         </Card>
@@ -250,19 +208,6 @@ const Payments = () => {
             onChange={handleSearchChange}
             onKeyDown={handleSearchKeyDown}
             icon={MagnifyingGlassIcon}
-          />
-          
-          <Select
-            placeholder="Estado"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            options={[
-              { value: '', label: 'Todos los estados' },
-              { value: 'paid', label: 'Pagado' },
-              { value: 'pending', label: 'Pendiente' },
-              { value: 'overdue', label: 'Vencido' },
-              { value: 'cancelled', label: 'Cancelado' }
-            ]}
           />
           
           <Select
@@ -301,7 +246,6 @@ const Payments = () => {
             onClick={() => {
               setSearchTerm('');
               setSearchQuery('');
-              setStatusFilter('');
               setMonthFilter('');
               setStudentFilter('');
             }}
@@ -333,9 +277,6 @@ const Payments = () => {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Vencimiento
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Acciones
@@ -384,9 +325,6 @@ const Payments = () => {
                           {payment.paymentMonth}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(payment.status)}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end space-x-2">
                           <Button 
@@ -412,7 +350,7 @@ const Payments = () => {
             </div>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No hay pagos</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {searchTerm || statusFilter || monthFilter || studentFilter
+              {searchTerm || monthFilter || studentFilter
                 ? 'No se encontraron pagos que coincidan con los filtros aplicados.'
                 : 'No hay pagos registrados en el sistema.'
               }
@@ -433,17 +371,6 @@ const Payments = () => {
             <span>
               Mostrando {filteredPayments.length} de {payments?.length || 0} pagos
             </span>
-            <div className="flex space-x-4">
-              <span>
-                Pagados: {filteredPayments.filter(p => p.status === 'paid').length}
-              </span>
-              <span>
-                Pendientes: {filteredPayments.filter(p => p.status === 'pending').length}
-              </span>
-              <span>
-                Vencidos: {filteredPayments.filter(p => p.status === 'overdue').length}
-              </span>
-            </div>
           </div>
         </Card>
       )}

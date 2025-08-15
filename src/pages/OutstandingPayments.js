@@ -16,27 +16,44 @@ import Input from '../components/common/Input';
 import Select from '../components/common/Select';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { useApi } from '../hooks/useApi';
-import { paymentsAPI } from '../services/api';
+import { reportsAPI } from '../services/api';
 
 const OutstandingPayments = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('daysOverdue');
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    // Default to current month in YYYY-MM format
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   const {
-    data: outstandingPayments,
+    data: reportData,
     loading,
     error,
     refetch
   } = useApi(
-    () => paymentsAPI.getOutstanding(),
-    [],
+    () => reportsAPI.getOutstandingPayments(selectedMonth),
+    [selectedMonth],
     {
-      transform: (data) => data || []
+      transform: (data) => data || {
+        month: selectedMonth,
+        outstandingPayments: [],
+        totalOutstandingAmount: 0,
+        studentsWithOutstandingPayments: 0
+      }
     }
   );
 
+  // Debug logs
+  console.log('🔍 OutstandingPayments Debug:', {
+    loading,
+    error,
+    reportData,
+    selectedMonth
+  });
+
   if (loading) {
+    console.log('⏳ Component is loading...');
     return (
       <div className="flex items-center justify-center min-h-96">
         <LoadingSpinner size="lg" />
@@ -45,6 +62,7 @@ const OutstandingPayments = () => {
   }
 
   if (error) {
+    console.log('❌ Component has error:', error);
     return (
       <div className="text-center py-12">
         <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-red-500 mb-4" />
@@ -57,44 +75,50 @@ const OutstandingPayments = () => {
     );
   }
 
+  console.log('✅ Component rendering with data:', reportData);
+
   // Filter and sort payments
-  const filteredPayments = outstandingPayments
-    .filter(payment => {
-      const matchesSearch = payment.studentName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           payment.className?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || payment.status === statusFilter;
-      return matchesSearch && matchesStatus;
+  const filteredPayments = reportData.outstandingPayments
+    .filter(student => {
+      const matchesSearch = student.studentName?.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesSearch;
     })
     .sort((a, b) => {
-      switch (sortBy) {
-        case 'daysOverdue':
-          return (b.daysOverdue || 0) - (a.daysOverdue || 0);
-        case 'amount':
-          return (b.amount || 0) - (a.amount || 0);
-        case 'studentName':
-          return (a.studentName || '').localeCompare(b.studentName || '');
-        default:
-          return 0;
-      }
+      // Sort by total owed amount (descending)
+      return (b.totalOwed || 0) - (a.totalOwed || 0);
     });
 
-  const totalOutstanding = filteredPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
-  const totalWithLateFees = filteredPayments.reduce((sum, payment) => {
-    const lateFee = (payment.daysOverdue || 0) > 10 ? (payment.amount || 0) * 0.15 : 0;
-    return sum + (payment.amount || 0) + lateFee;
-  }, 0);
-
-  const getStatusBadge = (status, daysOverdue) => {
-    if (daysOverdue > 30) return <Badge variant="danger">Crítico</Badge>;
-    if (daysOverdue > 10) return <Badge variant="warning">Recargo</Badge>;
-    return <Badge variant="info">Pendiente</Badge>;
-  };
+  const totalOutstanding = filteredPayments.reduce((sum, student) => sum + (student.totalOwed || 0), 0);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
       currency: 'CLP'
     }).format(amount || 0);
+  };
+
+  const getStatusBadge = (totalOwed) => {
+    if (totalOwed > 50000) return <Badge variant="danger">Crítico</Badge>;
+    if (totalOwed > 25000) return <Badge variant="warning">Alto</Badge>;
+    return <Badge variant="info">Pendiente</Badge>;
+  };
+
+  // Generate month options for the last 12 months
+  const getMonthOptions = () => {
+    const options = [];
+    const now = new Date();
+    
+    for (let i = 0; i < 12; i++) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const label = date.toLocaleDateString('es-CL', { 
+        year: 'numeric', 
+        month: 'long' 
+      });
+      options.push({ value, label });
+    }
+    
+    return options;
   };
 
   return (
@@ -121,8 +145,8 @@ const OutstandingPayments = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Pendiente</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalOutstanding)}</p>
-              <p className="text-sm text-red-600">{filteredPayments.length} pagos</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(reportData.totalOutstandingAmount)}</p>
+              <p className="text-sm text-red-600">{reportData.studentsWithOutstandingPayments} estudiantes</p>
             </div>
           </div>
         </Card>
@@ -130,13 +154,13 @@ const OutstandingPayments = () => {
         <Card className="p-6">
           <div className="flex items-center">
             <div className="p-2 bg-yellow-100 rounded-lg">
-              <CurrencyDollarIcon className="h-6 w-6 text-yellow-600" />
+              <CalendarDaysIcon className="h-6 w-6 text-yellow-600" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Con Recargos</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalWithLateFees)}</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalOutstanding)}</p>
               <p className="text-sm text-yellow-600">
-                +{formatCurrency(totalWithLateFees - totalOutstanding)} recargos
+                Estimado con recargos por mora
               </p>
             </div>
           </div>
@@ -148,14 +172,11 @@ const OutstandingPayments = () => {
               <CalendarDaysIcon className="h-6 w-6 text-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Promedio Días</p>
+              <p className="text-sm font-medium text-gray-600">Estudiantes</p>
               <p className="text-2xl font-bold text-gray-900">
-                {filteredPayments.length > 0 
-                  ? Math.round(filteredPayments.reduce((sum, p) => sum + (p.daysOverdue || 0), 0) / filteredPayments.length)
-                  : 0
-                }
+                {filteredPayments.length}
               </p>
-              <p className="text-sm text-blue-600">días vencido</p>
+              <p className="text-sm text-blue-600">Con pagos pendientes</p>
             </div>
           </div>
         </Card>
@@ -175,25 +196,9 @@ const OutstandingPayments = () => {
           </div>
           <div>
             <Select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              options={[
-                { value: 'all', label: 'Todos los estados' },
-                { value: 'pending', label: 'Pendiente' },
-                { value: 'overdue', label: 'Vencido' },
-                { value: 'critical', label: 'Crítico' }
-              ]}
-            />
-          </div>
-          <div>
-            <Select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              options={[
-                { value: 'daysOverdue', label: 'Días vencido' },
-                { value: 'amount', label: 'Monto' },
-                { value: 'studentName', label: 'Nombre estudiante' }
-              ]}
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              options={getMonthOptions()}
             />
           </div>
           <div>
@@ -217,7 +222,7 @@ const OutstandingPayments = () => {
             <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No hay pagos pendientes</h3>
             <p className="text-gray-600">
-              {searchTerm || statusFilter !== 'all' 
+              {searchTerm 
                 ? 'No se encontraron pagos con los filtros aplicados'
                 : 'Todos los pagos están al día'
               }
@@ -232,16 +237,7 @@ const OutstandingPayments = () => {
                     Estudiante
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Clase
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Monto
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Fecha Vencimiento
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Días Vencido
+                    Total Adeudado
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Estado
@@ -255,63 +251,40 @@ const OutstandingPayments = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredPayments.map((payment) => {
-                  const lateFee = (payment.daysOverdue || 0) > 10 ? (payment.amount || 0) * 0.15 : 0;
-                  const totalAmount = (payment.amount || 0) + lateFee;
-
+                {filteredPayments.map((student) => {
                   return (
-                    <tr key={payment.id} className="hover:bg-gray-50">
+                    <tr key={student.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <div className="text-sm font-medium text-gray-900">
-                            {payment.studentName || 'N/A'}
+                            {student.studentName || 'N/A'}
                           </div>
                           <div className="text-sm text-gray-500">
-                            ID: {payment.studentId || 'N/A'}
+                            ID: {student.studentId || 'N/A'}
                           </div>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {payment.className || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          {formatCurrency(payment.amount)}
+                          {formatCurrency(student.totalOwed)}
                         </div>
-                        {lateFee > 0 && (
-                          <div className="text-sm text-red-600">
-                            +{formatCurrency(lateFee)} recargo
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {payment.dueDate ? new Date(payment.dueDate).toLocaleDateString('es-CL') : 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`text-sm font-medium ${
-                          (payment.daysOverdue || 0) > 30 ? 'text-red-600' :
-                          (payment.daysOverdue || 0) > 10 ? 'text-yellow-600' :
-                          'text-blue-600'
-                        }`}>
-                          {payment.daysOverdue || 0} días
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {getStatusBadge(payment.status, payment.daysOverdue)}
+                        {getStatusBadge(student.totalOwed)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex space-x-2">
-                          {payment.studentPhone && (
+                          {student.studentPhone && (
                             <a
-                              href={`tel:${payment.studentPhone}`}
+                              href={`tel:${student.studentPhone}`}
                               className="text-blue-600 hover:text-blue-800"
                             >
                               <PhoneIcon className="h-4 w-4" />
                             </a>
                           )}
-                          {payment.studentEmail && (
+                          {student.studentEmail && (
                             <a
-                              href={`mailto:${payment.studentEmail}`}
+                              href={`mailto:${student.studentEmail}`}
                               className="text-blue-600 hover:text-blue-800"
                             >
                               <EnvelopeIcon className="h-4 w-4" />
@@ -323,7 +296,7 @@ const OutstandingPayments = () => {
                         <div className="flex justify-end space-x-2">
                           <Button
                             as={Link}
-                            to={`/payments/new?studentId=${payment.studentId}`}
+                            to={`/payments/new?studentId=${student.studentId}`}
                             variant="primary"
                             size="sm"
                           >
@@ -331,7 +304,7 @@ const OutstandingPayments = () => {
                           </Button>
                           <Button
                             as={Link}
-                            to={`/students/${payment.studentId}`}
+                            to={`/students/${student.studentId}`}
                             variant="ghost"
                             size="sm"
                           >

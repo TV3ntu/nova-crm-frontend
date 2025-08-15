@@ -42,32 +42,11 @@ const PaymentDetail = () => {
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'paid':
-        return <CheckCircleIcon className="h-5 w-5 text-green-500" />;
-      case 'pending':
-        return <ClockIcon className="h-5 w-5 text-yellow-500" />;
-      case 'overdue':
-        return <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />;
-      default:
-        return <ClockIcon className="h-5 w-5 text-gray-500" />;
-    }
-  };
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'paid':
-        return <Badge variant="success">Pagado</Badge>;
-      case 'pending':
-        return <Badge variant="warning">Pendiente</Badge>;
-      case 'overdue':
-        return <Badge variant="danger">Vencido</Badge>;
-      case 'cancelled':
-        return <Badge variant="secondary">Cancelado</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP'
+    }).format(amount);
   };
 
   const formatDate = (dateString) => {
@@ -77,13 +56,6 @@ const PaymentDetail = () => {
       month: 'long',
       day: 'numeric'
     });
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-CL', {
-      style: 'currency',
-      currency: 'CLP'
-    }).format(amount);
   };
 
   if (loading) {
@@ -142,8 +114,7 @@ const PaymentDetail = () => {
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          {getStatusIcon(payment.status)}
-          {getStatusBadge(payment.status)}
+          {/* Status elements removed - payments don't have status */}
         </div>
       </div>
 
@@ -293,32 +264,16 @@ const PaymentDetail = () => {
             
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-gray-600">Estado:</span>
-                {getStatusBadge(payment.status)}
+                <span className="text-gray-600">Método de Pago:</span>
+                <span className="font-medium">{payment.paymentMethod || 'No especificado'}</span>
               </div>
               
               <div className="flex items-center justify-between">
-                <span className="text-gray-600">Creado:</span>
-                <span className="text-gray-900">
-                  {formatDate(payment.createdAt)}
+                <span className="text-gray-600">Notas:</span>
+                <span className="font-medium text-right max-w-xs">
+                  {payment.notes || 'Sin notas adicionales'}
                 </span>
               </div>
-              
-              {payment.updatedAt && payment.updatedAt !== payment.createdAt && (
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Actualizado:</span>
-                  <span className="text-gray-900">
-                    {formatDate(payment.updatedAt)}
-                  </span>
-                </div>
-              )}
-              
-              {payment.isLatePayment && (
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Pago tardío:</span>
-                  <Badge variant="warning">Sí</Badge>
-                </div>
-              )}
             </div>
           </Card>
 
