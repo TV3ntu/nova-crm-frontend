@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   PlusIcon, 
@@ -17,29 +17,81 @@ import Select from '../components/common/Select';
 import Badge from '../components/common/Badge';
 import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import SearchableSelect from '../components/common/SearchableSelect'; // Import SearchableSelect component
 import { useApi } from '../hooks/useApi';
-import { paymentsAPI } from '../services/api';
+import { paymentsAPI, studentsAPI } from '../services/api';
 
 const Payments = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [monthFilter, setMonthFilter] = useState('');
   const [studentFilter, setStudentFilter] = useState('');
 
+  // Handle search input change (only updates local state, doesn't trigger API)
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  // Handle Enter key press to trigger search
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      console.log(' Búsqueda activada:', searchTerm);
+      setSearchQuery(searchTerm);
+    }
+  };
+
+  // Load payments with search query (only when Enter is pressed)
   const {
     data: payments,
     loading,
     error,
     refetch
   } = useApi(
-    () => paymentsAPI.getAll({
-      search: searchTerm,
-      status: statusFilter,
-      month: monthFilter,
-      student: studentFilter
-    }),
-    [searchTerm, statusFilter, monthFilter, studentFilter]
+    () => {
+      const params = {
+        search: searchQuery,
+        status: statusFilter,
+        month: monthFilter,
+        student: studentFilter
+      };
+      console.log(' Parámetros enviados a la API:', params);
+      return paymentsAPI.getAll(params);
+    },
+    [searchQuery, statusFilter, monthFilter, studentFilter]
   );
+
+  // Debug: Log payments data when it changes
+  useEffect(() => {
+    if (payments) {
+      console.log(' Pagos recibidos de la API:', payments.length, 'pagos');
+      console.log(' Primeros 3 pagos:', payments.slice(0, 3));
+    }
+  }, [payments]);
+
+  // Load students for dropdown filter
+  const {
+    data: students,
+    loading: studentsLoading
+  } = useApi(
+    () => studentsAPI.getAll(),
+    []
+  );
+
+  // Prepare student options for dropdown
+  const studentOptions = useMemo(() => {
+    const baseOptions = [{ value: '', label: 'Todos los estudiantes' }];
+    
+    if (students && students.length > 0) {
+      const studentOpts = students.map(student => ({
+        value: student.id.toString(),
+        label: student.fullName || `${student.firstName} ${student.lastName}`
+      }));
+      return [...baseOptions, ...studentOpts];
+    }
+    
+    return baseOptions;
+  }, [students]);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -77,21 +129,27 @@ const Payments = () => {
     return diffDays > 0 ? diffDays : 0;
   };
 
-  // Filtrar pagos localmente si hay datos
-  const filteredPayments = payments ? payments.filter(payment => {
-    const matchesSearch = !searchTerm || 
-      payment.student?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.student?.email.toLowerCase().includes(searchTerm.toLowerCase());
-    
+  // Filtrar pagos localmente si hay datos (backend ya maneja la búsqueda por texto)
+  const filteredPayments = useMemo(() => payments ? payments.filter(payment => {
+    // No filtrar por searchQuery aquí - el backend ya lo hace
     const matchesStatus = !statusFilter || payment.status === statusFilter;
     
     const matchesMonth = !monthFilter || 
-      new Date(payment.dueDate).getMonth() === parseInt(monthFilter);
+      new Date(payment.paymentDate).getMonth() === parseInt(monthFilter);
     
-    const matchesStudent = !studentFilter || payment.student?.id === parseInt(studentFilter);
+    const matchesStudent = !studentFilter || payment.studentId === parseInt(studentFilter);
     
-    return matchesSearch && matchesStatus && matchesMonth && matchesStudent;
-  }) : [];
+    return matchesStatus && matchesMonth && matchesStudent;
+  }) : [], [payments, statusFilter, monthFilter, studentFilter]);
+
+  // Calcular estadísticas
+  const stats = useMemo(() => filteredPayments.reduce((acc, payment) => {
+    acc.total += payment.amount || 0;
+    if (payment.status === 'paid') acc.paid += payment.amount || 0;
+    if (payment.status === 'pending') acc.pending += payment.amount || 0;
+    if (payment.status === 'overdue') acc.overdue += payment.amount || 0;
+    return acc;
+  }, { total: 0, paid: 0, pending: 0, overdue: 0 }), [filteredPayments]);
 
   if (loading) {
     return (
@@ -113,15 +171,6 @@ const Payments = () => {
       </div>
     );
   }
-
-  // Calcular estadísticas
-  const stats = filteredPayments.reduce((acc, payment) => {
-    acc.total += payment.amount || 0;
-    if (payment.status === 'paid') acc.paid += payment.amount || 0;
-    if (payment.status === 'pending') acc.pending += payment.amount || 0;
-    if (payment.status === 'overdue') acc.overdue += payment.amount || 0;
-    return acc;
-  }, { total: 0, paid: 0, pending: 0, overdue: 0 });
 
   return (
     <div className="space-y-6">
@@ -198,7 +247,8 @@ const Payments = () => {
           <Input
             placeholder="Buscar por estudiante..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearchChange}
+            onKeyDown={handleSearchKeyDown}
             icon={MagnifyingGlassIcon}
           />
           
@@ -236,14 +286,13 @@ const Payments = () => {
             ]}
           />
           
-          <Select
+          <SearchableSelect
             placeholder="Estudiante"
             value={studentFilter}
-            onChange={(e) => setStudentFilter(e.target.value)}
-            options={[
-              { value: '', label: 'Todos los estudiantes' },
-              // Aquí se cargarían los estudiantes desde la API
-            ]}
+            onChange={(value) => setStudentFilter(value)}
+            options={studentOptions}
+            searchPlaceholder="Buscar estudiante..."
+            noResultsText="No se encontraron estudiantes"
           />
           
           <Button
@@ -251,6 +300,7 @@ const Payments = () => {
             icon={FunnelIcon}
             onClick={() => {
               setSearchTerm('');
+              setSearchQuery('');
               setStatusFilter('');
               setMonthFilter('');
               setStudentFilter('');
@@ -294,80 +344,59 @@ const Payments = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredPayments.map((payment) => {
-                  const daysOverdue = getDaysOverdue(payment.dueDate);
-                  const lateFee = calculateLateFee(payment.baseAmount || payment.amount, daysOverdue);
-                  const totalAmount = (payment.baseAmount || payment.amount) + lateFee;
-                  
                   return (
                     <tr key={payment.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
-                          <Avatar 
-                            src={payment.student?.avatar} 
-                            name={payment.student?.name} 
-                            size="sm" 
-                          />
-                          <div className="ml-3">
+                          <div>
                             <div className="text-sm font-medium text-gray-900">
-                              {payment.student?.name}
+                              {payment.studentName}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {payment.student?.email}
+                              ID: {payment.studentId}
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{payment.description}</div>
-                        {payment.classes && payment.classes.length > 0 && (
+                        <div className="text-sm text-gray-900">{payment.className}</div>
+                        {payment.notes && (
                           <div className="text-sm text-gray-500">
-                            {payment.classes.join(', ')}
+                            {payment.notes}
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
-                          ${totalAmount.toLocaleString()}
+                          ${payment.amount.toLocaleString()}
                         </div>
-                        {lateFee > 0 && (
+                        {payment.isLatePayment && (
                           <div className="text-xs text-red-600">
-                            +${lateFee.toLocaleString()} recargo
+                            Pago tardío
                           </div>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">
-                          {formatDate(payment.dueDate)}
+                          {new Date(payment.paymentDate).toLocaleDateString('es-CL')}
                         </div>
-                        {daysOverdue > 0 && (
-                          <div className="text-xs text-red-600">
-                            {daysOverdue} días vencido
-                          </div>
-                        )}
+                        <div className="text-xs text-gray-500">
+                          {payment.paymentMonth}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(payment.status)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex justify-end space-x-2">
+                        <div className="flex items-center justify-end space-x-2">
                           <Button 
                             as={Link} 
                             to={`/payments/${payment.id}`} 
                             variant="ghost" 
                             size="sm"
                           >
-                            Ver
+                            Ver Detalle
                           </Button>
-                          {payment.status !== 'paid' && (
-                            <Button 
-                              as={Link} 
-                              to={`/payments/${payment.id}/pay`} 
-                              variant="primary" 
-                              size="sm"
-                            >
-                              Pagar
-                            </Button>
-                          )}
                         </div>
                       </td>
                     </tr>

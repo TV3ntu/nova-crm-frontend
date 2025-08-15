@@ -82,25 +82,43 @@ const PaymentForm = () => {
             
             pendingClasses = classResponses.map((classResponse, index) => {
               const classData = classResponse.data;
+              
+              // Calculate proper due date - 10th of current month
+              const now = new Date();
+              const currentMonth = now.getMonth();
+              const currentYear = now.getFullYear();
+              const dueDate = new Date(currentYear, currentMonth, 10);
+              
+              // If we're past the 10th, the payment is overdue
+              const isOverdue = now.getDate() > 10;
+              
               return {
                 id: `${student.id}-${classData.id}`,
                 classId: classData.id,
                 name: classData.name,
                 price: classData.price || 25000, // Use actual price or fallback
-                dueDate: new Date(Date.now() + (index * 7 * 24 * 60 * 60 * 1000)).toISOString(), // Mock due dates
-                overdue: Math.random() > 0.8 // Random overdue status for demo
+                dueDate: dueDate.toISOString(),
+                overdue: isOverdue
               };
             });
           } catch (error) {
             console.error('Error fetching class details for student:', student.id, error);
             // Fallback to mock data if class fetching fails
+            
+            // Calculate proper due date - 10th of current month
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            const dueDate = new Date(currentYear, currentMonth, 10);
+            const isOverdue = now.getDate() > 10;
+            
             pendingClasses = student.classIds.map((classId, index) => ({
               id: `${student.id}-${classId}`,
               classId: classId,
               name: `Clase ${index + 1}`,
               price: 25000,
-              dueDate: new Date(Date.now() + (index * 7 * 24 * 60 * 60 * 1000)).toISOString(),
-              overdue: Math.random() > 0.8
+              dueDate: dueDate.toISOString(),
+              overdue: isOverdue
             }));
           }
         }
@@ -256,6 +274,8 @@ const PaymentForm = () => {
           notes: formData.notes.trim() || null
         };
         
+        console.log(' Enviando pago clase única:', paymentData);
+        
         const response = await paymentsAPI.create(paymentData);
         
         showSuccess(`Pago de $${total.toLocaleString()} procesado exitosamente`);
@@ -264,15 +284,22 @@ const PaymentForm = () => {
       } else {
         // Multiple classes payment - use CreateMultiClassPaymentRequest format
         const totalAmount = parseFloat(total);
+        
+        // Convert paymentMonth to YearMonth format (YYYY-MM)
+        const paymentMonthFormatted = formData.paymentDate.substring(0, 7); // "2025-08"
+        
         const paymentData = {
           studentId: parseInt(formData.studentId),
-          totalAmount: parseFloat(totalAmount.toFixed(1)), // Send as decimal number, not string
-          paymentMonth: paymentMonth,
-          paymentDate: formData.paymentDate,
+          totalAmount: parseFloat(totalAmount.toFixed(1)), // BigDecimal as decimal number
+          paymentMonth: paymentMonthFormatted, // YearMonth format YYYY-MM
+          paymentDate: formData.paymentDate, // LocalDate format YYYY-MM-DD
+          paymentMethod: "EFECTIVO", // Default payment method as required by DTO
           notes: formData.notes.trim() || null
         };
         
-        const response = await paymentsAPI.create(paymentData);
+        console.log(' Enviando pago multi-clase:', paymentData);
+        
+        const response = await paymentsAPI.createMultiClass(paymentData);
         
         showSuccess(`Pago de $${total.toLocaleString()} procesado exitosamente`);
         
@@ -280,7 +307,58 @@ const PaymentForm = () => {
       }
     } catch (error) {
       console.error('Error processing payment:', error);
-      const errorMessage = error.response?.data?.message || error.response?.data || 'Error al procesar el pago';
+      
+      // Enhanced error handling with structured backend responses
+      const handlePaymentError = (error) => {
+        const errorData = error.response?.data;
+        
+        if (!errorData) {
+          return 'Error al procesar el pago. Por favor, intente nuevamente.';
+        }
+        
+        // If backend provides structured error with details
+        if (errorData.details && errorData.details.errorType) {
+          const { errorType, studentId, classId, paymentMonth } = errorData.details;
+          
+          switch (errorType) {
+            case 'DUPLICATE_PAYMENT':
+              return `⚠️ Ya existe un pago registrado para este estudiante en esta clase para el mes seleccionado.\n\n${errorData.message}`;
+              
+            case 'STUDENT_NOT_FOUND':
+              return `❌ No se encontró el estudiante seleccionado (ID: ${studentId}). Por favor, seleccione un estudiante válido.`;
+              
+            case 'CLASS_NOT_FOUND':
+              return `❌ No se encontró la clase seleccionada (ID: ${classId}). Por favor, actualice la página e intente nuevamente.`;
+              
+            case 'INVALID_PAYMENT_AMOUNT':
+              return `💰 El monto del pago no es válido. Debe ser mayor a $0 y no exceder los límites permitidos.`;
+              
+            case 'PAYMENT_MONTH_INVALID':
+              return `📅 El mes de pago "${paymentMonth}" no es válido. Por favor, seleccione una fecha válida.`;
+              
+            case 'STUDENT_NOT_ENROLLED':
+              return `📚 El estudiante no está inscrito en la clase seleccionada. Verifique la inscripción antes de registrar el pago.`;
+              
+            case 'PAYMENT_ALREADY_PROCESSED':
+              return `✅ Este pago ya fue procesado anteriormente. No es posible duplicar el registro.`;
+              
+            case 'INSUFFICIENT_PERMISSIONS':
+              return `🔒 No tiene permisos suficientes para registrar este pago. Contacte al administrador.`;
+              
+            case 'VALIDATION_ERROR':
+              return `📝 Error de validación: ${errorData.message}`;
+              
+            default:
+              // For unknown error types, show the backend message
+              return errorData.message || 'Error desconocido al procesar el pago.';
+          }
+        }
+        
+        // Fallback to backend message or generic error
+        return errorData.message || errorData || 'Error al procesar el pago';
+      };
+      
+      const errorMessage = handlePaymentError(error);
       showError(errorMessage);
     } finally {
       setLoading(false);

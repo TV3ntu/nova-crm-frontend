@@ -17,6 +17,7 @@ import ClassDetail from './pages/ClassDetail';
 import ClassForm from './pages/ClassForm';
 import Payments from './pages/Payments';
 import PaymentForm from './pages/PaymentForm';
+import PaymentDetail from './pages/PaymentDetail';
 import QuickPayment from './pages/QuickPayment';
 import Reports from './pages/Reports';
 import OutstandingPayments from './pages/OutstandingPayments';
@@ -145,6 +146,13 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <PaymentForm />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/payments/:id" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <PaymentDetail />
                   </Layout>
                 </ProtectedRoute>
               } />

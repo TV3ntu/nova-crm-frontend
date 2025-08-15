@@ -36,15 +36,32 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Solo manejar errores de autenticación específicos
-    if (error.response?.status === 401) {
+    // Manejar errores de autenticación (401 y 403)
+    if (error.response?.status === 401 || error.response?.status === 403) {
       const originalRequest = error.config;
       
       // Evitar loops infinitos y múltiples redirects
       if (!originalRequest._retry && !isRedirecting) {
         originalRequest._retry = true;
         
-        // Verificar si es un error de token expirado vs credenciales inválidas
+        // Para 403, siempre redirigir al login (indica falta de autenticación)
+        if (error.response?.status === 403) {
+          console.warn('Error 403: Acceso denegado, redirigiendo al login...');
+          isRedirecting = true;
+          
+          // Limpiar token
+          localStorage.removeItem('nova_crm_token');
+          
+          // Redirigir después de un pequeño delay para evitar problemas de estado
+          setTimeout(() => {
+            isRedirecting = false;
+            window.location.href = '/login';
+          }, 100);
+          
+          return Promise.reject(error);
+        }
+        
+        // Para 401, verificar si es un error de token expirado vs credenciales inválidas
         const errorMessage = error.response?.data?.message || '';
         const isTokenExpired = errorMessage.includes('expired') || 
                               errorMessage.includes('invalid') || 
@@ -298,6 +315,11 @@ export const paymentsAPI = {
   
   create: async (paymentData) => {
     const response = await apiClient.post('/api/payments', paymentData);
+    return response;
+  },
+
+  createMultiClass: async (paymentData) => {
+    const response = await apiClient.post('/api/payments/multi-class', paymentData);
     return response;
   },
 

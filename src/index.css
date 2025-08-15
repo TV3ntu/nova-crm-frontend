@@ -32,7 +32,7 @@
   }
   
   .card {
-    @apply bg-white overflow-hidden shadow-sm rounded-xl border border-gray-200;
+    @apply bg-white shadow-sm rounded-xl border border-gray-200;
   }
   
   .badge {
