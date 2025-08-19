@@ -37,10 +37,10 @@ const ClassDetail = () => {
   }, [classData?.teacherIds]);
 
   useEffect(() => {
-    if (classData?.studentIds?.length >= 0) {
+    if (classData) {
       loadEnrolledStudents();
     }
-  }, [classData?.studentIds]);
+  }, [classData]);
 
   const loadClass = async () => {
     setLoading(true);
@@ -93,20 +93,19 @@ const ClassDetail = () => {
 
   const loadEnrolledStudents = async () => {
     try {
-      // Get student details for each studentId from the class
-      if (classData?.studentIds?.length > 0) {
-        const studentPromises = classData.studentIds.map(studentId => 
-          studentsAPI.getById(studentId)
-        );
-        const studentResponses = await Promise.all(studentPromises);
-        const students = studentResponses.map(response => response.data);
-        setEnrolledStudents(students);
+      // Use the dedicated endpoint to get enrolled students for this class
+      const response = await classesAPI.getEnrolledStudents(id);
+      const students = response.data;
+      setEnrolledStudents(students);
+    } catch (error) {
+      console.error('Error loading enrolled students:', error);
+      // Handle the specific error format mentioned by the user
+      if (error.response?.status === 404) {
+        console.warn('Class not found:', error.response.data?.message);
+        setEnrolledStudents([]);
       } else {
         setEnrolledStudents([]);
       }
-    } catch (error) {
-      console.error('Error loading enrolled students:', error);
-      setEnrolledStudents([]);
     }
   };
 

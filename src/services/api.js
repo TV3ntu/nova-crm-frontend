@@ -195,9 +195,12 @@ export const studentsAPI = {
   },
 
   getEnrollmentsByDateRange: async (startDate, endDate) => {
-    const response = await apiClient.get('/api/students/enrollments/date-range', {
-      params: { startDate, endDate }
-    });
+    const params = new URLSearchParams({ startDate, endDate });
+    return apiClient.get(`/api/students/enrollments/date-range?${params}`);
+  },
+
+  getOutstandingPayments: async (id, month) => {
+    const response = await apiClient.get(`/api/students/${id}/outstanding-payments/${month}`);
     return response;
   }
 };

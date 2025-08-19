@@ -21,12 +21,14 @@ const PaymentForm = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [students, setStudents] = useState([]);
+  const [outstandingPayments, setOutstandingPayments] = useState(null);
+  const [loadingOutstanding, setLoadingOutstanding] = useState(false);
   const [formData, setFormData] = useState({
     studentId: preselectedStudentId || '',
     selectedClasses: [],
     customAmounts: {}, // Store custom amounts for each class
-    paymentMethod: 'EFECTIVO', // Default payment method
-    paymentDate: new Date().toISOString().split('T')[0],
+    paymentDate: new Date().toISOString().split('T')[0], // Default to today
+    paymentMethod: '',
     notes: ''
   });
   const [errors, setErrors] = useState({});
@@ -141,26 +143,69 @@ const PaymentForm = () => {
     }
   };
 
+  const loadOutstandingPayments = async (studentId, paymentDate) => {
+    if (!studentId || !paymentDate) {
+      setOutstandingPayments(null);
+      return;
+    }
+
+    setLoadingOutstanding(true);
+    try {
+      // Extract YYYY-MM from payment date
+      const paymentMonth = paymentDate.substring(0, 7);
+      const response = await studentsAPI.getOutstandingPayments(studentId, paymentMonth);
+      
+      console.log('Outstanding payments response:', response.data);
+      setOutstandingPayments(response.data);
+      
+      // Update form data with outstanding payments
+      if (response.data && response.data.outstandingPayments) {
+        const initialAmounts = {};
+        const allClassIds = [];
+        
+        response.data.outstandingPayments.forEach(payment => {
+          initialAmounts[payment.classId] = payment.expectedAmount;
+          allClassIds.push(payment.classId);
+        });
+        
+        setFormData(prev => ({
+          ...prev,
+          selectedClasses: allClassIds,
+          customAmounts: initialAmounts
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading outstanding payments:', error);
+      if (error.response?.status === 404) {
+        // No outstanding payments found
+        setOutstandingPayments({ 
+          hasOutstandingPayments: false, 
+          outstandingPayments: [],
+          totalOutstandingAmount: 0
+        });
+      } else {
+        showError('Error al cargar los pagos pendientes');
+        setOutstandingPayments(null);
+      }
+    } finally {
+      setLoadingOutstanding(false);
+    }
+  };
+
   const handleStudentChange = (studentId, studentOption) => {
     setSelectedStudent(studentOption);
-    
-    // Initialize custom amounts with default prices and auto-select ALL classes
-    const initialAmounts = {};
-    let allClassIds = [];
-    
-    if (studentOption && studentOption.pendingClasses) {
-      studentOption.pendingClasses.forEach(cls => {
-        initialAmounts[cls.id] = cls.price;
-        allClassIds.push(cls.id);
-      });
-    }
     
     setFormData(prev => ({
       ...prev,
       studentId,
-      selectedClasses: allClassIds, // Auto-select ALL pending classes
-      customAmounts: initialAmounts
+      selectedClasses: [],
+      customAmounts: {}
     }));
+    
+    // Load outstanding payments if we have both student and payment date
+    if (studentId && formData.paymentDate) {
+      loadOutstandingPayments(studentId, formData.paymentDate);
+    }
   };
 
   const handleAmountChange = (classId, amount) => {
@@ -187,27 +232,30 @@ const PaymentForm = () => {
         [name]: ''
       }));
     }
+    
+    // Load outstanding payments when student or payment date changes
+    if (name === 'paymentDate' && formData.studentId) {
+      loadOutstandingPayments(formData.studentId, value);
+    }
   };
 
   const calculatePayment = () => {
-    if (!selectedStudent || !selectedStudent.pendingClasses) return { baseAmount: 0, lateFee: 0, total: 0 };
+    if (!outstandingPayments || !outstandingPayments.hasOutstandingPayments) {
+      return { baseAmount: 0, lateFee: 0, total: 0, hasOverdueClasses: false };
+    }
 
-    // Calculate for all pending classes (auto-selected)
-    const baseAmount = selectedStudent.pendingClasses.reduce((sum, cls) => 
-      sum + (formData.customAmounts[cls.id] || cls.price), 0
+    // Calculate based on outstanding payments from API
+    const baseAmount = outstandingPayments.outstandingPayments.reduce((sum, payment) => 
+      sum + (formData.customAmounts[payment.classId] || payment.expectedAmount), 0
     );
     
-    // Calcular recargo por mora (15% si hay clases vencidas)
-    const hasOverdueClasses = selectedStudent.pendingClasses.some(cls => {
-      const dueDate = new Date(cls.dueDate);
-      const paymentDate = new Date(formData.paymentDate);
-      return paymentDate > dueDate;
-    });
+    // Check if any payments are late (expectedAmount already includes late fees from API)
+    const hasOverdueClasses = outstandingPayments.outstandingPayments.some(payment => payment.isLate);
+    
+    // Since expectedAmount already includes late fees, we don't calculate them separately
+    const total = baseAmount;
 
-    const lateFee = hasOverdueClasses ? Math.round(baseAmount * 0.15) : 0;
-    const total = baseAmount + lateFee;
-
-    return { baseAmount, lateFee, total, hasOverdueClasses };
+    return { baseAmount, lateFee: 0, total, hasOverdueClasses };
   };
 
   const validateForm = () => {
@@ -225,10 +273,10 @@ const PaymentForm = () => {
       newErrors.paymentMethod = 'Debe seleccionar un método de pago';
     }
     
-    // Validate custom amounts for all pending classes (auto-selected)
-    if (selectedStudent && selectedStudent.pendingClasses) {
-      const invalidAmounts = selectedStudent.pendingClasses.filter(cls => {
-        const amount = formData.customAmounts[cls.id];
+    // Validate custom amounts for outstanding payments
+    if (outstandingPayments && outstandingPayments.hasOutstandingPayments) {
+      const invalidAmounts = outstandingPayments.outstandingPayments.filter(payment => {
+        const amount = formData.customAmounts[payment.classId];
         return !amount || amount <= 0;
       });
       
@@ -252,21 +300,20 @@ const PaymentForm = () => {
       const { total } = calculatePayment();
       
       // Get the payment month from the payment date (YYYY-MM format)
-      const paymentMonth = formData.paymentDate.substring(0, 7); // "2024-01" format
+      const paymentMonth = formData.paymentDate.substring(0, 7);
       
-      if (formData.selectedClasses.length === 1) {
+      if (outstandingPayments.outstandingPayments.length === 1) {
         // Single class payment - use CreatePaymentRequest format
-        const selectedClassId = formData.selectedClasses[0];
-        const selectedClass = selectedStudent.pendingClasses.find(cls => cls.id === selectedClassId);
-        const amount = parseFloat(formData.customAmounts[selectedClassId] || 0);
+        const payment = outstandingPayments.outstandingPayments[0];
+        const amount = parseFloat(formData.customAmounts[payment.classId] || payment.expectedAmount);
         
         const paymentData = {
           studentId: parseInt(formData.studentId),
-          classId: selectedClass.classId, // Use the real classId, not the composite id
+          classId: payment.classId,
           amount: parseFloat(amount.toFixed(1)), // Send as decimal number, not string
           paymentMonth: paymentMonth,
           paymentDate: formData.paymentDate,
-          paymentMethod: formData.paymentMethod, // Use selected payment method
+          paymentMethod: formData.paymentMethod,
           notes: formData.notes.trim() || null
         };
         
@@ -281,15 +328,12 @@ const PaymentForm = () => {
         // Multiple classes payment - use CreateMultiClassPaymentRequest format
         const totalAmount = parseFloat(total);
         
-        // Convert paymentMonth to YearMonth format (YYYY-MM)
-        const paymentMonthFormatted = formData.paymentDate.substring(0, 7); // "2025-08"
-        
         const paymentData = {
           studentId: parseInt(formData.studentId),
           totalAmount: parseFloat(totalAmount.toFixed(1)), // BigDecimal as decimal number
-          paymentMonth: paymentMonthFormatted, // YearMonth format YYYY-MM
+          paymentMonth: paymentMonth, // YearMonth format YYYY-MM
           paymentDate: formData.paymentDate, // LocalDate format YYYY-MM-DD
-          paymentMethod: formData.paymentMethod, // Use selected payment method
+          paymentMethod: formData.paymentMethod,
           notes: formData.notes.trim() || null
         };
         
@@ -413,67 +457,16 @@ const PaymentForm = () => {
                 <div>
                   <h3 className="font-semibold text-gray-900">{selectedStudent.name}</h3>
                   <p className="text-sm text-gray-600">
-                    {selectedStudent.pendingClasses.length} clase{selectedStudent.pendingClasses.length > 1 ? 's' : ''} pendiente{selectedStudent.pendingClasses.length > 1 ? 's' : ''}
+                    {outstandingPayments?.hasOutstandingPayments 
+                      ? `${outstandingPayments.outstandingPayments.length} pago${outstandingPayments.outstandingPayments.length > 1 ? 's' : ''} pendiente${outstandingPayments.outstandingPayments.length > 1 ? 's' : ''}`
+                      : 'Sin pagos pendientes'
+                    }
                   </p>
                 </div>
               </div>
             </div>
           )}
         </Card>
-
-        {/* Clases a Pagar */}
-        {selectedStudent && (
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Clases a Pagar ({selectedStudent.pendingClasses.length})
-            </h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Se procesará el pago de todas las clases pendientes de la estudiante.
-            </p>
-            
-            <div className="space-y-3">
-              {selectedStudent.pendingClasses.map((cls) => (
-                <div key={cls.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-2 h-2 bg-primary-500 rounded-full mr-3"></div>
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-gray-900">{cls.name}</span>
-                          {cls.overdue && <Badge variant="danger" size="sm">Vencida</Badge>}
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          Vence: {new Date(cls.dueDate).toLocaleDateString('es-CL')}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-3">
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500">Precio original: ${cls.price.toLocaleString()}</p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <span className="text-sm font-medium text-gray-700">$</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={formData.customAmounts[cls.id] || cls.price}
-                            onChange={(e) => handleAmountChange(cls.id, e.target.value)}
-                            className="w-24 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                            placeholder="Monto"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-            {errors.customAmounts && (
-              <p className="mt-2 text-sm text-red-600">{errors.customAmounts}</p>
-            )}
-          </Card>
-        )}
 
         {/* Detalles del Pago */}
         <Card className="p-6">
@@ -511,24 +504,108 @@ const PaymentForm = () => {
           </div>
         </Card>
 
+        {/* Clases a Pagar */}
+        {loadingOutstanding && (
+          <Card className="p-6">
+            <div className="flex items-center justify-center">
+              <LoadingSpinner size="md" />
+              <span className="ml-2 text-gray-600">Cargando pagos pendientes...</span>
+            </div>
+          </Card>
+        )}
+
+        {outstandingPayments && outstandingPayments.hasOutstandingPayments && (
+          <Card className="p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Clases a Pagar ({outstandingPayments.outstandingPayments.length})
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Se procesará el pago de todas las clases pendientes para el mes {outstandingPayments.month}.
+            </p>
+            
+            <div className="space-y-3">
+              {outstandingPayments.outstandingPayments.map((payment) => (
+                <div key={payment.classId} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-primary-500 rounded-full mr-3"></div>
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-gray-900">{payment.className}</span>
+                          {payment.isLate && <Badge variant="danger" size="sm">Pago tardío</Badge>}
+                        </div>
+                        <p className="text-xs text-gray-500">
+                          Clase ID: {payment.classId}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3">
+                      <div className="text-right">
+                        <p className="text-xs text-gray-500">
+                          Monto esperado: ${payment.expectedAmount.toLocaleString()}
+                          {payment.isLate && <span className="text-red-600"> (incluye recargo)</span>}
+                        </p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <span className="text-sm font-medium text-gray-700">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={formData.customAmounts[payment.classId] || payment.expectedAmount}
+                            onChange={(e) => handleAmountChange(payment.classId, e.target.value)}
+                            className="w-24 px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                            placeholder="Monto"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {errors.customAmounts && (
+              <p className="mt-2 text-sm text-red-600">{errors.customAmounts}</p>
+            )}
+          </Card>
+        )}
+
+        {outstandingPayments && !outstandingPayments.hasOutstandingPayments && (
+          <Card className="p-6">
+            <div className="text-center py-8">
+              <div className="text-gray-400 mb-2">
+                <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">Sin pagos pendientes</h3>
+              <p className="text-gray-500">
+                {selectedStudent?.name} no tiene pagos pendientes para {outstandingPayments.month}.
+              </p>
+            </div>
+          </Card>
+        )}
+
         {/* Resumen del Pago */}
-        {selectedStudent && selectedStudent.pendingClasses && selectedStudent.pendingClasses.length > 0 && (
+        {outstandingPayments && outstandingPayments.hasOutstandingPayments && (
           <Card className="p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Resumen del Pago</h2>
             
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Subtotal ({selectedStudent.pendingClasses.length} clase{selectedStudent.pendingClasses.length > 1 ? 's' : ''})</span>
-                <span className="text-sm font-medium text-gray-900">${baseAmount.toLocaleString()}</span>
+                <span className="text-sm text-gray-600">
+                  Total ({outstandingPayments.outstandingPayments.length} clase{outstandingPayments.outstandingPayments.length > 1 ? 's' : ''})
+                </span>
+                <span className="text-sm font-medium text-gray-900">${total.toLocaleString()}</span>
               </div>
               
               {hasOverdueClasses && (
                 <div className="flex justify-between items-center">
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm text-red-600">Recargo por mora (15%)</span>
+                    <span className="text-sm text-red-600">Incluye recargo por mora</span>
                     <Badge variant="danger" size="sm">Aplicado</Badge>
                   </div>
-                  <span className="text-sm font-medium text-red-600">+${lateFee.toLocaleString()}</span>
                 </div>
               )}
               
@@ -543,7 +620,7 @@ const PaymentForm = () => {
             {hasOverdueClasses && (
               <div className="mt-4 p-3 bg-red-50 rounded-lg">
                 <p className="text-sm text-red-800">
-                  <strong>Nota:</strong> Se aplicó un recargo del 15% por pago tardío en clases vencidas.
+                  <strong>Nota:</strong> Los montos mostrados ya incluyen el recargo por pago tardío.
                 </p>
               </div>
             )}
@@ -564,7 +641,7 @@ const PaymentForm = () => {
           <Button
             type="submit"
             loading={loading}
-            disabled={loading || !selectedStudent}
+            disabled={loading || !outstandingPayments?.hasOutstandingPayments}
           >
             Procesar Pago ${total.toLocaleString()}
           </Button>

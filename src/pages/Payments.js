@@ -5,21 +5,19 @@ import {
   CurrencyDollarIcon, 
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  ClockIcon,
   FunnelIcon,
   MagnifyingGlassIcon,
-  CalendarDaysIcon
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
 import Select from '../components/common/Select';
-import Badge from '../components/common/Badge';
-import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import SearchableSelect from '../components/common/SearchableSelect'; // Import SearchableSelect component
 import { useApi } from '../hooks/useApi';
 import { paymentsAPI, studentsAPI } from '../services/api';
+import { useNotification } from '../contexts/NotificationContext';
 
 const Payments = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,10 +65,9 @@ const Payments = () => {
     }
   }, [payments]);
 
-  // Load students for dropdown filter
+  // Load students for a dropdown filter
   const {
-    data: students,
-    loading: studentsLoading
+    data: students
   } = useApi(
     () => studentsAPI.getAll(),
     []
@@ -90,29 +87,7 @@ const Payments = () => {
     
     return baseOptions;
   }, [students]);
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('es-CL', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const calculateLateFee = (baseAmount, daysOverdue) => {
-    if (daysOverdue <= 10) return 0;
-    return Math.round(baseAmount * 0.15); // 15% recargo después del día 10
-  };
-
-  const getDaysOverdue = (dueDate) => {
-    const today = new Date();
-    const due = new Date(dueDate);
-    const diffTime = today - due;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : 0;
-  };
-
-  // Filtrar pagos localmente si hay datos (backend ya maneja la búsqueda por texto)
+// Filtrar pagos localmente si hay datos (backend ya maneja la búsqueda por texto)
   const filteredPayments = useMemo(() => payments ? payments.filter(payment => {
     // No filtrar por searchQuery aquí - el backend ya lo hace
     const matchesMonth = !monthFilter || 
@@ -133,6 +108,20 @@ const Payments = () => {
     count: 0
   }), [filteredPayments]);
 
+  const { showSuccess, showError } = useNotification();
+
+  const handleDeletePayment = async (paymentId) => {
+    if (window.confirm('¿Estás seguro de eliminar este pago?')) {
+      try {
+        await paymentsAPI.delete(paymentId);
+        refetch();
+        showSuccess('Pago eliminado con éxito');
+      } catch (error) {
+        showError('Error al eliminar pago');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -145,7 +134,7 @@ const Payments = () => {
     return (
       <div className="text-center py-12">
         <CurrencyDollarIcon className="mx-auto h-12 w-12 text-red-500 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Error al cargar pagos</h3>
+        <h3 className="text-lg font-medium text-gray-900">Error al cargar pagos</h3>
         <p className="text-gray-600 mb-4">{error}</p>
         <Button onClick={refetch} variant="primary">
           Reintentar
@@ -163,7 +152,7 @@ const Payments = () => {
           <p className="text-gray-600">Gestión de pagos y facturación</p>
         </div>
         <div className="flex space-x-3">
-          <Button as={Link} to="/payments/outstanding" variant="secondary" icon={ExclamationTriangleIcon}>
+          <Button as={Link} to="/reports/outstanding-payments" variant="secondary" icon={ExclamationTriangleIcon}>
             Pagos Pendientes
           </Button>
           <Button as={Link} to="/payments/new" icon={PlusIcon}>
@@ -334,6 +323,14 @@ const Payments = () => {
                             size="sm"
                           >
                             Ver Detalle
+                          </Button>
+                          <Button 
+                            variant="danger" 
+                            size="sm"
+                            icon={TrashIcon}
+                            onClick={() => handleDeletePayment(payment.id)}
+                          >
+                            Eliminar
                           </Button>
                         </div>
                       </td>
