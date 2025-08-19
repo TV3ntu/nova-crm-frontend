@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { PencilIcon, UserPlusIcon, UserMinusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
@@ -11,6 +11,7 @@ import TeacherAssignmentModal from '../components/modals/TeacherAssignmentModal'
 import StudentEnrollmentModal from '../components/modals/StudentEnrollmentModal';
 import { classesAPI, teachersAPI, studentsAPI } from '../services/api';
 import { useNotification } from '../contexts/NotificationContext';
+import { formatDayOfWeek } from '../utils/paymentUtils';
 
 const ClassDetail = () => {
   const { id } = useParams();
@@ -23,26 +24,10 @@ const ClassDetail = () => {
   const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [showStudentEnrollmentModal, setShowStudentEnrollmentModal] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [, setDeleting] = useState(false);
   const { showSuccess, showError } = useNotification();
 
-  useEffect(() => {
-    loadClass();
-  }, [id]);
-
-  useEffect(() => {
-    if (classData?.teacherIds?.length >= 0) {
-      loadAssignedTeachers();
-    }
-  }, [classData?.teacherIds]);
-
-  useEffect(() => {
-    if (classData) {
-      loadEnrolledStudents();
-    }
-  }, [classData]);
-
-  const loadClass = async () => {
+  const loadClass = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -70,7 +55,23 @@ const ClassDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    loadClass();
+  }, [loadClass]);
+
+  useEffect(() => {
+    if (classData?.teacherIds?.length >= 0) {
+      loadAssignedTeachers();
+    }
+  }, [classData?.teacherIds]);
+
+  useEffect(() => {
+    if (classData) {
+      loadEnrolledStudents();
+    }
+  }, [classData]);
 
   const loadAssignedTeachers = async () => {
     try {
@@ -172,32 +173,6 @@ const ClassDetail = () => {
       setDeleting(false);
       setShowDeleteDialog(false);
     }
-  };
-
-  const getPaymentStatusBadge = (status) => {
-    switch (status) {
-      case 'overdue':
-        return <Badge variant="danger">Atrasado</Badge>;
-      case 'pending':
-        return <Badge variant="warning">Pendiente</Badge>;
-      case 'paid':
-        return <Badge variant="success">Pagado</Badge>;
-      default:
-        return <Badge variant="secondary">Desconocido</Badge>;
-    }
-  };
-
-  const formatDayOfWeek = (dayOfWeek) => {
-    const dayMap = {
-      'MONDAY': 'Lunes',
-      'TUESDAY': 'Martes',
-      'WEDNESDAY': 'Miércoles',
-      'THURSDAY': 'Jueves',
-      'FRIDAY': 'Viernes',
-      'SATURDAY': 'Sábado',
-      'SUNDAY': 'Domingo'
-    };
-    return dayMap[dayOfWeek] || dayOfWeek;
   };
 
   const formatTime = (hour, minute) => {

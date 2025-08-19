@@ -4,7 +4,7 @@ import {
   PlusIcon, 
   MagnifyingGlassIcon, 
   FunnelIcon,
-  UserGroupIcon
+  UserIcon,
 } from '@heroicons/react/24/outline';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
@@ -15,6 +15,7 @@ import Avatar from '../components/common/Avatar';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import { useApi } from '../hooks/useApi';
 import { studentsAPI } from '../services/api';
+import { getPaymentStatusBadge } from '../utils/paymentUtils';
 
 const Students = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,28 +49,6 @@ const Students = () => {
     }
   };
 
-  const getPaymentStatusBadge = (paymentStatus, totalOwed) => {
-    switch (paymentStatus) {
-      case 'up_to_date':
-        return <Badge variant="success">Al día</Badge>;
-      case 'overdue':
-        return (
-          <div>
-            <Badge variant="danger">Vencido</Badge>
-            {totalOwed > 0 && (
-              <p className="text-xs text-red-600 mt-1">
-                Debe: ${totalOwed.toLocaleString()}
-              </p>
-            )}
-          </div>
-        );
-      case 'pending':
-        return <Badge variant="warning">Pendiente</Badge>;
-      default:
-        return <Badge variant="secondary">{paymentStatus}</Badge>;
-    }
-  };
-
   // Filtrar estudiantes localmente si hay datos
   const filteredStudents = students ? students.filter(student => {
     const matchesSearch = !searchTerm || 
@@ -97,7 +76,7 @@ const Students = () => {
   if (error) {
     return (
       <div className="text-center py-12">
-        <UserGroupIcon className="mx-auto h-12 w-12 text-red-500 mb-4" />
+        <UserIcon className="mx-auto h-12 w-12 text-red-500 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Error al cargar estudiantes</h3>
         <p className="text-gray-600 mb-4">{error}</p>
         <Button onClick={refetch} variant="primary">
